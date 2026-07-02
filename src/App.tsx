@@ -3,6 +3,7 @@ import bakedChicken from './assets/images/Baked-Chicken-Legs-7-of-7-750x750.jpg'
 import egusiSoup from './assets/images/494555509_4031516693793297_2131975294073460328_n.jpg';
 import jollofRice from './assets/images/delicious-jollof-rice-with-grilled-chicken-and-fried-plantains-photo.jpg';
 import wrapsBurgers from './assets/images/image copy copy.png';
+import deliveryBike from './assets/images/delivery-bike.png';
 import {
   Search,
   ShoppingCart,
@@ -164,56 +165,9 @@ function App() {
 
           {/* Delivery Motorcycle 1 - left to right */}
           <div className="absolute bottom-[16px]" style={{ animation: 'bikeRight 14s linear infinite' }}>
-            <svg width="200" height="110" viewBox="0 0 200 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-              {/* Delivery box on rear */}
-              <rect x="110" y="18" width="44" height="34" rx="4" fill="#1B5E3E" />
-              <rect x="110" y="18" width="44" height="8" rx="3" fill="#144d32" />
-              <text x="132" y="40" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">FOOD</text>
-              {/* Rider helmet */}
-              <circle cx="82" cy="12" r="10" fill="#111827" />
-              <ellipse cx="80" cy="14" rx="7" ry="5" fill="#1B5E3E" />
-              {/* Rider body */}
-              <rect x="76" y="22" width="16" height="18" rx="4" fill="#1B5E3E" />
-              {/* Rider arms/handlebars */}
-              <line x1="76" y1="28" x2="54" y2="32" stroke="#1B5E3E" strokeWidth="4" strokeLinecap="round" />
-              {/* Motorcycle fairing / front cowl */}
-              <path d="M38 52 Q30 44 32 36 L52 30 L62 52 Z" fill="#FF6B6B" />
-              {/* Headlight */}
-              <ellipse cx="34" cy="44" rx="6" ry="5" fill="#FFF8E7" stroke="#e0d0a0" strokeWidth="1" />
-              {/* Main fuel tank */}
-              <path d="M58 28 Q90 22 108 30 L112 50 L58 52 Z" fill="#FF6B6B" />
-              {/* Engine block */}
-              <rect x="64" y="50" width="44" height="20" rx="3" fill="#667085" />
-              <rect x="70" y="54" width="12" height="12" rx="2" fill="#4b5563" />
-              <rect x="90" y="54" width="12" height="12" rx="2" fill="#4b5563" />
-              {/* Exhaust pipe */}
-              <path d="M64 66 Q50 72 42 70 L40 74 Q50 78 68 70" fill="#9ca3af" />
-              {/* Swing arm */}
-              <line x1="108" y1="62" x2="152" y2="66" stroke="#374151" strokeWidth="4" strokeLinecap="round" />
-              {/* Front fork */}
-              <line x1="50" y1="52" x2="38" y2="76" stroke="#374151" strokeWidth="4" strokeLinecap="round" />
-              <line x1="56" y1="52" x2="44" y2="76" stroke="#374151" strokeWidth="4" strokeLinecap="round" />
-              {/* Seat */}
-              <rect x="88" y="26" width="26" height="8" rx="4" fill="#111827" />
-              {/* Handlebar */}
-              <line x1="54" y1="30" x2="44" y2="22" stroke="#111827" strokeWidth="3" strokeLinecap="round" />
-              <line x1="44" y1="22" x2="36" y2="26" stroke="#111827" strokeWidth="3" strokeLinecap="round" />
-              {/* Rear wheel */}
-              <circle cx="152" cy="82" r="22" fill="none" stroke="#111827" strokeWidth="4" />
-              <circle cx="152" cy="82" r="5" fill="#374151" />
-              <line x1="152" y1="60" x2="152" y2="104" stroke="#9ca3af" strokeWidth="1.5" />
-              <line x1="130" y1="82" x2="174" y2="82" stroke="#9ca3af" strokeWidth="1.5" />
-              <line x1="136" y1="66" x2="168" y2="98" stroke="#9ca3af" strokeWidth="1.5" />
-              <line x1="168" y1="66" x2="136" y2="98" stroke="#9ca3af" strokeWidth="1.5" />
-              {/* Front wheel */}
-              <circle cx="41" cy="82" r="22" fill="none" stroke="#111827" strokeWidth="4" />
-              <circle cx="41" cy="82" r="5" fill="#374151" />
-              <line x1="41" y1="60" x2="41" y2="104" stroke="#9ca3af" strokeWidth="1.5" />
-              <line x1="19" y1="82" x2="63" y2="82" stroke="#9ca3af" strokeWidth="1.5" />
-              <line x1="25" y1="66" x2="57" y2="98" stroke="#9ca3af" strokeWidth="1.5" />
-              <line x1="57" y1="66" x2="25" y2="98" stroke="#9ca3af" strokeWidth="1.5" />
-            </svg>
+            <img src={deliveryBike} alt="Delivery scooter" className="w-[180px] h-auto drop-shadow-lg" />
           </div>
+
 
           {/* Food Truck - right to left */}
           <div className="absolute bottom-[18px]" style={{ animation: 'truckLeft 18s linear infinite', animationDelay: '2s' }}>
