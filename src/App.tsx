@@ -163,10 +163,11 @@ function App() {
             </svg>
           </div>
 
-          {/* Delivery Motorcycle 1 - left to right */}
-          <div className="absolute bottom-[16px]" style={{ animation: 'bikeRight 14s linear infinite' }}>
+          {/* Delivery Motorcycle 1 - right to left */}
+          <div className="absolute bottom-[16px]" style={{ animation: 'bikeLeft 14s linear infinite' }}>
             <img src={deliveryBike} alt="Delivery scooter" className="w-[180px] h-auto drop-shadow-lg" />
           </div>
+
 
 
           {/* Food Truck - right to left */}
@@ -206,10 +207,11 @@ function App() {
             </svg>
           </div>
 
-          {/* Delivery Motorcycle 2 - left to right, offset */}
-          <div className="absolute bottom-[16px]" style={{ animation: 'bikeRight 16s linear infinite', animationDelay: '5s' }}>
+          {/* Delivery Motorcycle 2 - right to left, offset */}
+          <div className="absolute bottom-[16px]" style={{ animation: 'bikeLeft 16s linear infinite', animationDelay: '5s' }}>
             <img src={deliveryBike} alt="Delivery scooter" className="w-[160px] h-auto drop-shadow-lg" />
           </div>
+
         </div>
       </header>
 
