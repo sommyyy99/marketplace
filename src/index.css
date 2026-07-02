@@ -42,15 +42,15 @@ body {
   }
 }
 
-
-@keyframes truckLeft {
+@keyframes truckRight {
   from {
-    right: -170px;
+    left: -170px;
   }
   to {
-    right: 100%;
+    left: 100%;
   }
 }
+
 
 input[type="search"]::-webkit-search-decoration,
 input[type="search"]::-webkit-search-cancel-button,

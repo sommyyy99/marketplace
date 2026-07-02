@@ -4,6 +4,7 @@ import egusiSoup from './assets/images/494555509_4031516693793297_21319752940734
 import jollofRice from './assets/images/delicious-jollof-rice-with-grilled-chicken-and-fried-plantains-photo.jpg';
 import wrapsBurgers from './assets/images/image copy copy.png';
 import deliveryBike from './assets/images/delivery-bike.png';
+import deliveryTruck from './assets/images/delivery-truck.png';
 import {
   Search,
   ShoppingCart,
@@ -170,41 +171,9 @@ function App() {
 
 
 
-          {/* Food Truck - right to left */}
-          <div className="absolute bottom-[18px]" style={{ animation: 'truckLeft 18s linear infinite', animationDelay: '2s' }}>
-            <svg width="160" height="90" viewBox="0 0 160 90" fill="none" xmlns="http://www.w3.org/2000/svg">
-              {/* Truck body */}
-              <rect x="20" y="15" width="100" height="45" rx="6" fill="#FF6B6B" />
-              <rect x="20" y="15" width="100" height="10" rx="6" fill="#E63946" />
-              {/* Food window */}
-              <rect x="35" y="28" width="40" height="22" rx="3" fill="#FFF8E7" stroke="#111827" strokeWidth="1.5" />
-              <text x="55" y="43" textAnchor="middle" fill="#111827" fontSize="8" fontWeight="bold">FOOD</text>
-              {/* Awning */}
-              <rect x="33" y="24" width="44" height="5" rx="2" fill="#FF8FA3" />
-              <rect x="33" y="24" width="8" height="5" fill="#E63946" />
-              <rect x="49" y="24" width="8" height="5" fill="#E63946" />
-              <rect x="65" y="24" width="8" height="5" fill="#E63946" />
-              {/* Cab */}
-              <rect x="120" y="25" width="30" height="35" rx="4" fill="#FF8FA3" />
-              <rect x="125" y="30" width="20" height="14" rx="2" fill="#FFF8E7" stroke="#111827" strokeWidth="1" />
-              {/* Wheels */}
-              <circle cx="45" cy="68" r="11" fill="none" stroke="#111827" strokeWidth="2.5" />
-              <circle cx="45" cy="68" r="3" fill="#111827" />
-              <circle cx="110" cy="68" r="11" fill="none" stroke="#111827" strokeWidth="2.5" />
-              <circle cx="110" cy="68" r="3" fill="#111827" />
-              <circle cx="140" cy="68" r="11" fill="none" stroke="#111827" strokeWidth="2.5" />
-              <circle cx="140" cy="68" r="3" fill="#111827" />
-              {/* Spokes */}
-              <line x1="45" y1="57" x2="45" y2="79" stroke="#667085" strokeWidth="1" />
-              <line x1="34" y1="68" x2="56" y2="68" stroke="#667085" strokeWidth="1" />
-              <line x1="110" y1="57" x2="110" y2="79" stroke="#667085" strokeWidth="1" />
-              <line x1="99" y1="68" x2="121" y2="68" stroke="#667085" strokeWidth="1" />
-              <line x1="140" y1="57" x2="140" y2="79" stroke="#667085" strokeWidth="1" />
-              <line x1="129" y1="68" x2="151" y2="68" stroke="#667085" strokeWidth="1" />
-              {/* Exhaust puff */}
-              <circle cx="10" cy="30" r="5" fill="white" fillOpacity="0.5" />
-              <circle cx="4" cy="25" r="3" fill="white" fillOpacity="0.4" />
-            </svg>
+          {/* Food Truck - left to right */}
+          <div className="absolute bottom-[18px]" style={{ animation: 'truckRight 18s linear infinite', animationDelay: '2s' }}>
+            <img src={deliveryTruck} alt="Food delivery truck" className="w-[200px] h-auto drop-shadow-lg" />
           </div>
 
           {/* Delivery Motorcycle 2 - right to left, offset */}
