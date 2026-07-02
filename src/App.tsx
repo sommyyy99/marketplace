@@ -4,6 +4,7 @@ import egusiSoup from './assets/images/494555509_4031516693793297_21319752940734
 import jollofRice from './assets/images/delicious-jollof-rice-with-grilled-chicken-and-fried-plantains-photo.jpg';
 import wrapsBurgers from './assets/images/image copy copy.png';
 import deliveryBike from './assets/images/delivery-bike.png';
+import deliveryTruck from './assets/images/delivery-truck.png';
 import {
   Search,
   ShoppingCart,
