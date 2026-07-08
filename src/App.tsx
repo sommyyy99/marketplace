@@ -10,6 +10,27 @@ interface VendorRow {
   logo_url: string | null;
   category: string | null;
 }
+
+interface Product {
+  id: string;
+  name: string;
+  vendor: string;
+  description: string;
+  price: number;
+  category: string;
+  image: string;
+}
+
+interface MenuItemRow {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category_id: string | null;
+  image_url: string | null;
+  vendors: { name: string } | null;
+}
+
 import bakedChicken from './assets/images/Baked-Chicken-Legs-7-of-7-750x750.jpg';
 import egusiSoup from './assets/images/494555509_4031516693793297_2131975294073460328_n.jpg';
 import jollofRice from './assets/images/delicious-jollof-rice-with-grilled-chicken-and-fried-plantains-photo.jpg';
@@ -30,12 +51,10 @@ import {
 } from 'lucide-react';
 import {
   categories,
-  products,
   initialBasketItems,
   deliveryFee,
   serviceFee,
 } from './data/products';
-import type { Product } from './data/products';
 
 interface BasketItem {
   id: string;
@@ -51,6 +70,8 @@ function App() {
   const [cityOpen, setCityOpen] = useState(false);
   const [vendors, setVendors] = useState<VendorRow[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [authUser, setAuthUser] = useState<SupaUser | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -115,6 +136,39 @@ function App() {
         setVendors(data ?? []);
       }
       setVendorsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('id, name, description, price, category_id, image_url, vendors(name)')
+        .eq('is_available', true)
+        .order('name');
+      if (cancelled) return;
+      if (error) {
+        console.error('Failed to load menu items', error);
+        setProducts([]);
+      } else {
+        const rows = (data ?? []) as MenuItemRow[];
+        setProducts(
+          rows.map((item) => ({
+            id: item.id,
+            name: item.name,
+            vendor: item.vendors?.name ?? 'Local vendor',
+            description: item.description ?? '',
+            price: Number(item.price),
+            category: item.category_id ?? 'all',
+            image: item.image_url ?? wrapsBurgers,
+          })),
+        );
+      }
+      setProductsLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -574,7 +628,11 @@ function App() {
             </div>
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4 max-[520px]:grid-cols-1">
-              {filteredProducts.map((product, i) => (
+              {productsLoading ? (
+                <p className="text-sm text-[#667085] py-3">Loading menu items...</p>
+              ) : filteredProducts.length === 0 ? (
+                <p className="text-sm text-[#667085] py-3">No menu items available right now.</p>
+              ) : filteredProducts.map((product, i) => (
                 <article
                   key={product.id}
                   className="min-w-0 bg-white border border-[#e5e7eb] rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] animate-fade-up"
