@@ -51,6 +51,52 @@ function App() {
   const [cityOpen, setCityOpen] = useState(false);
   const [vendors, setVendors] = useState<VendorRow[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(true);
+  const [authUser, setAuthUser] = useState<SupaUser | null>(null);
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setAuthUser(data.session?.user ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      setAuthUser(session?.user ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) {
+      setProfileName(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', authUser.id)
+        .maybeSingle();
+      if (!cancelled) {
+        setProfileName(
+          data?.full_name ||
+            (authUser.user_metadata?.full_name as string | undefined) ||
+            authUser.email ||
+            null,
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setAccountMenuOpen(false);
+  };
+
 
   useEffect(() => {
     let cancelled = false;
