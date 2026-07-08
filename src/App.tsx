@@ -1,4 +1,13 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { supabase } from './integrations/supabase/client';
+
+interface VendorRow {
+  id: string;
+  name: string;
+  avg_rating: number | null;
+  logo_url: string | null;
+  category: string | null;
+}
 import bakedChicken from './assets/images/Baked-Chicken-Legs-7-of-7-750x750.jpg';
 import egusiSoup from './assets/images/494555509_4031516693793297_2131975294073460328_n.jpg';
 import jollofRice from './assets/images/delicious-jollof-rice-with-grilled-chicken-and-fried-plantains-photo.jpg';
@@ -20,7 +29,6 @@ import {
 import {
   categories,
   products,
-  vendors,
   initialBasketItems,
   deliveryFee,
   serviceFee,
@@ -39,6 +47,31 @@ function App() {
   const [activeNav, setActiveNav] = useState('Market');
   const [activeService, setActiveService] = useState('Food');
   const [cityOpen, setCityOpen] = useState(false);
+  const [vendors, setVendors] = useState<VendorRow[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('id, name, avg_rating, logo_url, category')
+        .eq('is_active', true)
+        .eq('is_open', true)
+        .order('avg_rating', { ascending: false });
+      if (cancelled) return;
+      if (error) {
+        console.error('Failed to load vendors', error);
+        setVendors([]);
+      } else {
+        setVendors(data ?? []);
+      }
+      setVendorsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'all') return products;
@@ -533,27 +566,42 @@ function App() {
             {/* Trusted Vendors */}
             <section className="mt-6">
               <h3 className="text-sm font-bold text-[#111827] mb-3">Trusted vendors</h3>
-              {vendors.map((vendor) => (
-                <div key={vendor.id} className="flex items-center gap-3 py-3 border-t border-[#e5e7eb]">
-                  <span
-                    className={`w-9 h-9 flex-shrink-0 grid place-items-center rounded-full text-xs font-black ${
-                      vendor.color === 'orange'
-                        ? 'bg-[#1B5E3E]/10 text-[#1B5E3E]'
-                        : vendor.color === 'teal'
-                          ? 'bg-[#2A9D8F]/10 text-[#2A9D8F]'
-                          : 'bg-[#111827]/10 text-[#111827]'
-                    }`}
-                  >
-                    {vendor.initials}
-                  </span>
-                  <p className="m-0">
-                    <strong className="block text-sm text-[#111827]">{vendor.name}</strong>
-                    <small className="block text-[#667085] text-xs mt-0.5">
-                      {vendor.rating} rating | {vendor.distance}
-                    </small>
-                  </p>
-                </div>
-              ))}
+              {vendorsLoading ? (
+                <p className="text-xs text-[#667085] py-3">Loading vendors…</p>
+              ) : vendors.length === 0 ? (
+                <p className="text-xs text-[#667085] py-3">No vendors available right now.</p>
+              ) : (
+                vendors.map((vendor) => {
+                  const initials = vendor.name
+                    .split(' ')
+                    .map((w) => w[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase();
+                  return (
+                    <div key={vendor.id} className="flex items-center gap-3 py-3 border-t border-[#e5e7eb]">
+                      {vendor.logo_url ? (
+                        <img
+                          src={vendor.logo_url}
+                          alt={vendor.name}
+                          className="w-9 h-9 flex-shrink-0 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="w-9 h-9 flex-shrink-0 grid place-items-center rounded-full text-xs font-black bg-[#1B5E3E]/10 text-[#1B5E3E]">
+                          {initials}
+                        </span>
+                      )}
+                      <p className="m-0">
+                        <strong className="block text-sm text-[#111827]">{vendor.name}</strong>
+                        <small className="block text-[#667085] text-xs mt-0.5">
+                          {vendor.avg_rating ? `${Number(vendor.avg_rating).toFixed(1)} rating` : 'New vendor'}
+                          {vendor.category ? ` | ${vendor.category}` : ''}
+                        </small>
+                      </p>
+                    </div>
+                  );
+                })
+              )}
             </section>
           </aside>
         </section>
