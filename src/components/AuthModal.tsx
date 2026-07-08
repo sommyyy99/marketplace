@@ -31,24 +31,20 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
     setLoading(true);
     try {
       if (mode === 'signup') {
+        const trimmedFullName = fullName.trim();
+        if (!trimmedFullName) {
+          throw new Error('Enter your full name.');
+        }
+
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: window.location.origin,
-            data: { full_name: fullName },
+            data: { full_name: trimmedFullName },
           },
         });
         if (signUpError) throw signUpError;
-
-        if (data.user) {
-          const { error: profileError } = await supabase.from('profiles').upsert({
-            id: data.user.id,
-            full_name: fullName,
-            role: 'customer',
-          });
-          if (profileError) console.error('Profile insert failed', profileError);
-        }
 
         if (!data.session) {
           setInfo('Check your email to confirm your account.');
