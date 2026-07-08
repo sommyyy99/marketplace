@@ -146,8 +146,8 @@ function App() {
     { label: 'Orders', icon: ClipboardList },
     { label: 'Saved', icon: Heart },
     { label: 'Vendors', icon: Users },
-    { label: 'Account', icon: User },
   ];
+
 
   const services = ['Food', 'Groceries', 'Pharmacy', 'Shops'];
 
