@@ -284,8 +284,46 @@ function App() {
               </button>
             );
           })}
+
+          <div className="ml-auto relative">
+            {authUser ? (
+              <>
+                <button
+                  onClick={() => setAccountMenuOpen((v) => !v)}
+                  className="min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap bg-[#f7f8fa] text-[#111827] hover:bg-[#e5e7eb] transition-colors"
+                >
+                  <span className="w-6 h-6 grid place-items-center rounded-full bg-[#1B5E3E] text-white text-xs font-black">
+                    <User className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="font-bold max-w-[140px] truncate">
+                    {profileName ?? 'Account'}
+                  </span>
+                </button>
+                {accountMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-[#e5e7eb] py-2 min-w-[160px] z-20">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-sm text-[#111827] hover:bg-[#f7f8fa]"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <button
+                onClick={() => setAuthOpen(true)}
+                className="min-h-[40px] rounded-full bg-[#1B5E3E] text-white font-bold px-5 text-sm hover:bg-[#144d32] transition-colors shadow-md"
+              >
+                Sign in
+              </button>
+            )}
+          </div>
         </div>
       </nav>
+
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+
 
       {/* Main Content */}
       <main className="w-full max-w-[1200px] mx-auto px-6 py-8">
