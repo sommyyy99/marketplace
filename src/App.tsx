@@ -147,7 +147,7 @@ function App() {
     (async () => {
       const { data, error } = await supabase
         .from('menu_items')
-        .select('id, name, description, price, category_id, image_url, vendors(name)')
+        .select('id, name, description, price, category_id, image_url, vendors!menu_items_vendor_id_fkey(name)')
         .eq('is_available', true)
         .order('name');
       if (cancelled) return;
