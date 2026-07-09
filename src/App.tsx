@@ -15,6 +15,7 @@ interface Product {
   id: string;
   name: string;
   vendor: string;
+  vendorId: string | null;
   description: string;
   price: number;
   category: string;
@@ -28,6 +29,7 @@ interface MenuItemRow {
   price: number;
   category_id: string | null;
   image_url: string | null;
+  vendor_id: string | null;
   vendors: { name: string } | null;
 }
 
@@ -51,20 +53,21 @@ import {
 } from 'lucide-react';
 import {
   categories,
-  initialBasketItems,
   deliveryFee,
   serviceFee,
 } from './data/products';
 
 interface BasketItem {
   id: string;
+  menuItemId: string;
+  vendorId: string | null;
   name: string;
   price: number;
 }
 
 function App() {
   const [activeCategory, setActiveCategory] = useState('all');
-  const [basket, setBasket] = useState<BasketItem[]>(initialBasketItems);
+  const [basket, setBasket] = useState<BasketItem[]>([]);
   const [activeNav, setActiveNav] = useState('Market');
   const [activeService, setActiveService] = useState('Food');
   const [cityOpen, setCityOpen] = useState(false);
@@ -76,6 +79,8 @@ function App() {
   const [profileName, setProfileName] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutMessage, setCheckoutMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -147,7 +152,7 @@ function App() {
     (async () => {
       const { data, error } = await supabase
         .from('menu_items')
-        .select('id, name, description, price, category_id, image_url, vendors!menu_items_vendor_id_fkey(name)')
+        .select('id, name, description, price, category_id, image_url, vendor_id, vendors!menu_items_vendor_id_fkey(name)')
         .eq('is_available', true)
         .order('name');
       if (cancelled) return;
@@ -161,6 +166,7 @@ function App() {
             id: item.id,
             name: item.name,
             vendor: item.vendors?.name ?? 'Local vendor',
+            vendorId: item.vendor_id,
             description: item.description ?? '',
             price: Number(item.price),
             category: item.category_id ?? 'all',
@@ -181,15 +187,77 @@ function App() {
   }, [activeCategory, products]);
 
   const addToBasket = useCallback((product: Product) => {
+    setCheckoutMessage(null);
     setBasket((prev) => [
       ...prev,
       {
         id: `${product.id}-${Date.now()}`,
+        menuItemId: product.id,
+        vendorId: product.vendorId,
         name: product.name,
         price: product.price,
       },
     ]);
   }, []);
+
+  const handleCheckout = useCallback(async () => {
+    setCheckoutMessage(null);
+    if (!authUser) {
+      setAuthOpen(true);
+      return;
+    }
+    if (basket.length === 0) return;
+
+    const vendorId = basket[0].vendorId;
+    if (!vendorId) {
+      setCheckoutMessage({ kind: 'error', text: "This item isn't linked to a vendor yet." });
+      return;
+    }
+    if (basket.some((it) => it.vendorId !== vendorId)) {
+      setCheckoutMessage({ kind: 'error', text: 'All items must be from the same vendor.' });
+      return;
+    }
+
+    setCheckoutLoading(true);
+    try {
+      const subtotal = basket.reduce((s, it) => s + it.price, 0);
+      const orderTotal = subtotal + deliveryFee + serviceFee;
+
+      const { data: order, error: orderErr } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: authUser.id,
+          vendor_id: vendorId,
+          subtotal,
+          delivery_fee: deliveryFee,
+          total: orderTotal,
+          status: 'placed',
+          payment_status: 'pending',
+        })
+        .select('id')
+        .single();
+      if (orderErr) throw orderErr;
+
+      const { error: itemsErr } = await supabase.from('order_items').insert(
+        basket.map((it) => ({
+          order_id: order.id,
+          menu_item_id: it.menuItemId,
+          name: it.name,
+          price: it.price,
+          quantity: 1,
+        })),
+      );
+      if (itemsErr) throw itemsErr;
+
+      setBasket([]);
+      setCheckoutMessage({ kind: 'success', text: 'Order placed! We’ll notify the vendor.' });
+    } catch (err: any) {
+      console.error('Checkout failed', err);
+      setCheckoutMessage({ kind: 'error', text: err.message || 'Checkout failed. Please try again.' });
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [authUser, basket]);
 
   const total = useMemo(() => {
     return basket.reduce((sum, item) => sum + item.price, 0) + deliveryFee + serviceFee;
@@ -677,15 +745,19 @@ function App() {
             </div>
 
             <div className="grid gap-2">
-              {basket.map((item) => (
-                <div
-                  key={item.id}
-                  className="min-h-[44px] rounded-xl bg-[#f7f8fa] flex justify-between gap-3 items-center px-3 py-2"
-                >
-                  <span className="text-[#667085] text-sm">{item.name}</span>
-                  <strong className="text-[#111827] whitespace-nowrap text-sm">₦{item.price.toLocaleString()}</strong>
-                </div>
-              ))}
+              {basket.length === 0 ? (
+                <p className="text-sm text-[#667085] py-3">Your basket is empty. Add an item to get started.</p>
+              ) : (
+                basket.map((item) => (
+                  <div
+                    key={item.id}
+                    className="min-h-[44px] rounded-xl bg-[#f7f8fa] flex justify-between gap-3 items-center px-3 py-2"
+                  >
+                    <span className="text-[#667085] text-sm">{item.name}</span>
+                    <strong className="text-[#111827] whitespace-nowrap text-sm">₦{item.price.toLocaleString()}</strong>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="my-5 grid gap-2 border-t border-[#e5e7eb] pt-4">
@@ -703,8 +775,22 @@ function App() {
               </div>
             </div>
 
-            <button className="w-full min-h-[48px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] transition-colors shadow-md">
-              Checkout now
+            {checkoutMessage && (
+              <p
+                className={`text-sm mb-3 ${
+                  checkoutMessage.kind === 'success' ? 'text-[#1B5E3E]' : 'text-red-600'
+                }`}
+              >
+                {checkoutMessage.text}
+              </p>
+            )}
+
+            <button
+              onClick={handleCheckout}
+              disabled={checkoutLoading || (authUser !== null && basket.length === 0)}
+              className="w-full min-h-[48px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] transition-colors shadow-md disabled:opacity-60"
+            >
+              {checkoutLoading ? 'Placing order…' : !authUser ? 'Sign in to checkout' : 'Checkout now'}
             </button>
 
             {/* Trusted Vendors */}
