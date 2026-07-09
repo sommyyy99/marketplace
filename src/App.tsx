@@ -152,7 +152,7 @@ function App() {
     (async () => {
       const { data, error } = await supabase
         .from('menu_items')
-        .select('id, name, description, price, category_id, image_url, vendors!menu_items_vendor_id_fkey(name)')
+        .select('id, name, description, price, category_id, image_url, vendor_id, vendors!menu_items_vendor_id_fkey(name)')
         .eq('is_available', true)
         .order('name');
       if (cancelled) return;
@@ -166,6 +166,7 @@ function App() {
             id: item.id,
             name: item.name,
             vendor: item.vendors?.name ?? 'Local vendor',
+            vendorId: item.vendor_id,
             description: item.description ?? '',
             price: Number(item.price),
             category: item.category_id ?? 'all',
@@ -186,15 +187,77 @@ function App() {
   }, [activeCategory, products]);
 
   const addToBasket = useCallback((product: Product) => {
+    setCheckoutMessage(null);
     setBasket((prev) => [
       ...prev,
       {
         id: `${product.id}-${Date.now()}`,
+        menuItemId: product.id,
+        vendorId: product.vendorId,
         name: product.name,
         price: product.price,
       },
     ]);
   }, []);
+
+  const handleCheckout = useCallback(async () => {
+    setCheckoutMessage(null);
+    if (!authUser) {
+      setAuthOpen(true);
+      return;
+    }
+    if (basket.length === 0) return;
+
+    const vendorId = basket[0].vendorId;
+    if (!vendorId) {
+      setCheckoutMessage({ kind: 'error', text: "This item isn't linked to a vendor yet." });
+      return;
+    }
+    if (basket.some((it) => it.vendorId !== vendorId)) {
+      setCheckoutMessage({ kind: 'error', text: 'All items must be from the same vendor.' });
+      return;
+    }
+
+    setCheckoutLoading(true);
+    try {
+      const subtotal = basket.reduce((s, it) => s + it.price, 0);
+      const orderTotal = subtotal + deliveryFee + serviceFee;
+
+      const { data: order, error: orderErr } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: authUser.id,
+          vendor_id: vendorId,
+          subtotal,
+          delivery_fee: deliveryFee,
+          total: orderTotal,
+          status: 'placed',
+          payment_status: 'pending',
+        })
+        .select('id')
+        .single();
+      if (orderErr) throw orderErr;
+
+      const { error: itemsErr } = await supabase.from('order_items').insert(
+        basket.map((it) => ({
+          order_id: order.id,
+          menu_item_id: it.menuItemId,
+          name: it.name,
+          price: it.price,
+          quantity: 1,
+        })),
+      );
+      if (itemsErr) throw itemsErr;
+
+      setBasket([]);
+      setCheckoutMessage({ kind: 'success', text: 'Order placed! We’ll notify the vendor.' });
+    } catch (err: any) {
+      console.error('Checkout failed', err);
+      setCheckoutMessage({ kind: 'error', text: err.message || 'Checkout failed. Please try again.' });
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [authUser, basket]);
 
   const total = useMemo(() => {
     return basket.reduce((sum, item) => sum + item.price, 0) + deliveryFee + serviceFee;
