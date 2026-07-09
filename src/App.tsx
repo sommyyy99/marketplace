@@ -745,15 +745,19 @@ function App() {
             </div>
 
             <div className="grid gap-2">
-              {basket.map((item) => (
-                <div
-                  key={item.id}
-                  className="min-h-[44px] rounded-xl bg-[#f7f8fa] flex justify-between gap-3 items-center px-3 py-2"
-                >
-                  <span className="text-[#667085] text-sm">{item.name}</span>
-                  <strong className="text-[#111827] whitespace-nowrap text-sm">₦{item.price.toLocaleString()}</strong>
-                </div>
-              ))}
+              {basket.length === 0 ? (
+                <p className="text-sm text-[#667085] py-3">Your basket is empty. Add an item to get started.</p>
+              ) : (
+                basket.map((item) => (
+                  <div
+                    key={item.id}
+                    className="min-h-[44px] rounded-xl bg-[#f7f8fa] flex justify-between gap-3 items-center px-3 py-2"
+                  >
+                    <span className="text-[#667085] text-sm">{item.name}</span>
+                    <strong className="text-[#111827] whitespace-nowrap text-sm">₦{item.price.toLocaleString()}</strong>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="my-5 grid gap-2 border-t border-[#e5e7eb] pt-4">
@@ -771,8 +775,22 @@ function App() {
               </div>
             </div>
 
-            <button className="w-full min-h-[48px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] transition-colors shadow-md">
-              Checkout now
+            {checkoutMessage && (
+              <p
+                className={`text-sm mb-3 ${
+                  checkoutMessage.kind === 'success' ? 'text-[#1B5E3E]' : 'text-red-600'
+                }`}
+              >
+                {checkoutMessage.text}
+              </p>
+            )}
+
+            <button
+              onClick={handleCheckout}
+              disabled={checkoutLoading || (authUser !== null && basket.length === 0)}
+              className="w-full min-h-[48px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] transition-colors shadow-md disabled:opacity-60"
+            >
+              {checkoutLoading ? 'Placing order…' : !authUser ? 'Sign in to checkout' : 'Checkout now'}
             </button>
 
             {/* Trusted Vendors */}
