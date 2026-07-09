@@ -53,7 +53,6 @@ import {
 } from 'lucide-react';
 import {
   categories,
-  initialBasketItems,
   deliveryFee,
   serviceFee,
 } from './data/products';
