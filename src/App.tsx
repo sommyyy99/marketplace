@@ -15,6 +15,7 @@ interface Product {
   id: string;
   name: string;
   vendor: string;
+  vendorId: string | null;
   description: string;
   price: number;
   category: string;
@@ -28,6 +29,7 @@ interface MenuItemRow {
   price: number;
   category_id: string | null;
   image_url: string | null;
+  vendor_id: string | null;
   vendors: { name: string } | null;
 }
 
