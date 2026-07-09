@@ -59,6 +59,8 @@ import {
 
 interface BasketItem {
   id: string;
+  menuItemId: string;
+  vendorId: string | null;
   name: string;
   price: number;
 }
