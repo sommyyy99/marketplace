@@ -65,7 +65,7 @@ interface BasketItem {
 
 function App() {
   const [activeCategory, setActiveCategory] = useState('all');
-  const [basket, setBasket] = useState<BasketItem[]>(initialBasketItems);
+  const [basket, setBasket] = useState<BasketItem[]>([]);
   const [activeNav, setActiveNav] = useState('Market');
   const [activeService, setActiveService] = useState('Food');
   const [cityOpen, setCityOpen] = useState(false);
@@ -77,6 +77,8 @@ function App() {
   const [profileName, setProfileName] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutMessage, setCheckoutMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
