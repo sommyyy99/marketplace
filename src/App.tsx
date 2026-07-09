@@ -178,7 +178,7 @@ function App() {
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'all') return products;
     return products.filter((p) => p.category === activeCategory);
-  }, [activeCategory]);
+  }, [activeCategory, products]);
 
   const addToBasket = useCallback((product: Product) => {
     setBasket((prev) => [
