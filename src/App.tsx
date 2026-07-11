@@ -104,7 +104,7 @@ function App() {
     (async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('full_name')
+        .select('full_name, role')
         .eq('id', authUser.id)
         .maybeSingle();
       if (!cancelled) {
@@ -114,6 +114,7 @@ function App() {
             authUser.email ||
             null,
         );
+        setProfileRole(data?.role ?? null);
       }
     })();
     return () => {
@@ -124,6 +125,8 @@ function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setAccountMenuOpen(false);
+    setView('home');
+    setProfileRole(null);
   };
 
 
