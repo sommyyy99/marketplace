@@ -521,7 +521,10 @@ function App() {
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
 
-
+      {view === 'dashboard' && authUser && profileRole === 'vendor' ? (
+        <VendorDashboard userId={authUser.id} />
+      ) : (
+      <>
       {/* Main Content */}
       <main className="w-full max-w-[1200px] mx-auto px-6 py-8">
         {/* Hero Content */}
