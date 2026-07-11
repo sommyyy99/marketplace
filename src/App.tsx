@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { User as SupaUser } from '@supabase/supabase-js';
 import { supabase } from './integrations/supabase/client';
 import { AuthModal } from './components/AuthModal';
+import { VendorDashboard } from './components/VendorDashboard';
 
 interface VendorRow {
   id: string;
