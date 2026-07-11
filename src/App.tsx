@@ -78,6 +78,8 @@ function App() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [authUser, setAuthUser] = useState<SupaUser | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileRole, setProfileRole] = useState<string | null>(null);
+  const [view, setView] = useState<'home' | 'dashboard'>('home');
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
