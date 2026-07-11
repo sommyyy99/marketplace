@@ -469,6 +469,19 @@ function App() {
             );
           })}
 
+          {profileRole === 'vendor' && (
+            <button
+              onClick={() => setView(view === 'dashboard' ? 'home' : 'dashboard')}
+              className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
+                view === 'dashboard'
+                  ? 'bg-[#1B5E3E] text-white'
+                  : 'text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]'
+              }`}
+            >
+              Dashboard
+            </button>
+          )}
+
           <div className="ml-auto relative">
             {authUser ? (
               <>
