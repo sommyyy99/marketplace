@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { User as SupaUser } from '@supabase/supabase-js';
 import { supabase } from './integrations/supabase/client';
 import { AuthModal } from './components/AuthModal';
+import { VendorDashboard } from './components/VendorDashboard';
 
 interface VendorRow {
   id: string;
@@ -77,6 +78,8 @@ function App() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [authUser, setAuthUser] = useState<SupaUser | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileRole, setProfileRole] = useState<string | null>(null);
+  const [view, setView] = useState<'home' | 'dashboard'>('home');
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -101,7 +104,7 @@ function App() {
     (async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('full_name')
+        .select('full_name, role')
         .eq('id', authUser.id)
         .maybeSingle();
       if (!cancelled) {
@@ -111,6 +114,7 @@ function App() {
             authUser.email ||
             null,
         );
+        setProfileRole(data?.role ?? null);
       }
     })();
     return () => {
@@ -121,6 +125,8 @@ function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setAccountMenuOpen(false);
+    setView('home');
+    setProfileRole(null);
   };
 
 
@@ -463,6 +469,19 @@ function App() {
             );
           })}
 
+          {profileRole === 'vendor' && (
+            <button
+              onClick={() => setView(view === 'dashboard' ? 'home' : 'dashboard')}
+              className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
+                view === 'dashboard'
+                  ? 'bg-[#1B5E3E] text-white'
+                  : 'text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]'
+              }`}
+            >
+              Dashboard
+            </button>
+          )}
+
           <div className="ml-auto relative">
             {authUser ? (
               <>
@@ -502,7 +521,10 @@ function App() {
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
 
-
+      {view === 'dashboard' && authUser && profileRole === 'vendor' ? (
+        <VendorDashboard userId={authUser.id} />
+      ) : (
+      <>
       {/* Main Content */}
       <main className="w-full max-w-[1200px] mx-auto px-6 py-8">
         {/* Hero Content */}
@@ -892,6 +914,8 @@ function App() {
           </aside>
         </section>
       </main>
+      </>
+      )}
     </div>
   );
 }
