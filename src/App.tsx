@@ -200,6 +200,59 @@ function App() {
     ]);
   }, []);
 
+  const loadPaystack = useCallback((): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (typeof window === 'undefined') return reject(new Error('No window'));
+      const w = window as any;
+      if (w.PaystackPop) return resolve(w.PaystackPop);
+      const existing = document.getElementById('paystack-inline-js') as HTMLScriptElement | null;
+      if (existing) {
+        existing.addEventListener('load', () => resolve((window as any).PaystackPop));
+        existing.addEventListener('error', () => reject(new Error('Failed to load Paystack')));
+        return;
+      }
+      const s = document.createElement('script');
+      s.id = 'paystack-inline-js';
+      s.src = 'https://js.paystack.co/v1/inline.js';
+      s.async = true;
+      s.onload = () => resolve((window as any).PaystackPop);
+      s.onerror = () => reject(new Error('Failed to load Paystack'));
+      document.body.appendChild(s);
+    });
+  }, []);
+
+  const createOrder = useCallback(
+    async (vendorId: string, subtotal: number, orderTotal: number, reference: string) => {
+      const { data: order, error: orderErr } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: authUser!.id,
+          vendor_id: vendorId,
+          subtotal,
+          delivery_fee: deliveryFee,
+          total: orderTotal,
+          status: 'placed',
+          payment_status: 'paid',
+          payment_reference: reference,
+        })
+        .select('id')
+        .single();
+      if (orderErr) throw orderErr;
+
+      const { error: itemsErr } = await supabase.from('order_items').insert(
+        basket.map((it) => ({
+          order_id: order.id,
+          menu_item_id: it.menuItemId,
+          name: it.name,
+          price: it.price,
+          quantity: 1,
+        })),
+      );
+      if (itemsErr) throw itemsErr;
+    },
+    [authUser, basket],
+  );
+
   const handleCheckout = useCallback(async () => {
     setCheckoutMessage(null);
     if (!authUser) {
@@ -218,46 +271,49 @@ function App() {
       return;
     }
 
+    const email = authUser.email;
+    if (!email) {
+      setCheckoutMessage({ kind: 'error', text: 'Your account has no email for payment.' });
+      return;
+    }
+
     setCheckoutLoading(true);
     try {
       const subtotal = basket.reduce((s, it) => s + it.price, 0);
       const orderTotal = subtotal + deliveryFee + serviceFee;
 
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          customer_id: authUser.id,
-          vendor_id: vendorId,
-          subtotal,
-          delivery_fee: deliveryFee,
-          total: orderTotal,
-          status: 'placed',
-          payment_status: 'pending',
-        })
-        .select('id')
-        .single();
-      if (orderErr) throw orderErr;
-
-      const { error: itemsErr } = await supabase.from('order_items').insert(
-        basket.map((it) => ({
-          order_id: order.id,
-          menu_item_id: it.menuItemId,
-          name: it.name,
-          price: it.price,
-          quantity: 1,
-        })),
-      );
-      if (itemsErr) throw itemsErr;
-
-      setBasket([]);
-      setCheckoutMessage({ kind: 'success', text: 'Order placed! We’ll notify the vendor.' });
+      const PaystackPop = await loadPaystack();
+      const handler = PaystackPop.setup({
+        key: 'pk_test_772559f6395e880ab255aa37da7ad977d918cb09',
+        email,
+        amount: Math.round(orderTotal * 100),
+        currency: 'NGN',
+        callback: (response: { reference: string }) => {
+          (async () => {
+            try {
+              await createOrder(vendorId, subtotal, orderTotal, response.reference);
+              setBasket([]);
+              setCheckoutMessage({ kind: 'success', text: `Payment successful! Order placed (ref ${response.reference}).` });
+            } catch (err: any) {
+              console.error('Order creation failed', err);
+              setCheckoutMessage({ kind: 'error', text: err.message || 'Payment succeeded but order failed to save. Contact support.' });
+            } finally {
+              setCheckoutLoading(false);
+            }
+          })();
+        },
+        onClose: () => {
+          setCheckoutLoading(false);
+          setCheckoutMessage({ kind: 'error', text: 'Payment cancelled. Your order was not placed.' });
+        },
+      });
+      handler.openIframe();
     } catch (err: any) {
       console.error('Checkout failed', err);
       setCheckoutMessage({ kind: 'error', text: err.message || 'Checkout failed. Please try again.' });
-    } finally {
       setCheckoutLoading(false);
     }
-  }, [authUser, basket]);
+  }, [authUser, basket, loadPaystack, createOrder]);
 
   const total = useMemo(() => {
     return basket.reduce((sum, item) => sum + item.price, 0) + deliveryFee + serviceFee;
