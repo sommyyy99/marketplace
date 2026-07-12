@@ -451,38 +451,40 @@ function App() {
 
       {/* Secondary Nav */}
       <nav className="bg-white border-b border-[#e5e7eb] px-6 py-3 sticky top-0 z-10">
-        <div className="max-w-[1200px] mx-auto flex gap-6 items-center overflow-x-auto scrollbar-hide">
-          {navItems.map((item) => {
-            const isActive = activeNav === item.label;
-            return (
+        <div className="max-w-[1200px] mx-auto flex gap-6 items-center">
+          <div className="flex gap-6 items-center overflow-x-auto scrollbar-hide flex-1 min-w-0">
+            {navItems.map((item) => {
+              const isActive = activeNav === item.label;
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => setActiveNav(item.label)}
+                  className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
+                    isActive
+                      ? 'bg-[#1B5E3E] text-white'
+                      : 'text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+
+            {profileRole === 'vendor' && (
               <button
-                key={item.label}
-                onClick={() => setActiveNav(item.label)}
+                onClick={() => setView(view === 'dashboard' ? 'home' : 'dashboard')}
                 className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
-                  isActive
+                  view === 'dashboard'
                     ? 'bg-[#1B5E3E] text-white'
                     : 'text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]'
                 }`}
               >
-                {item.label}
+                Dashboard
               </button>
-            );
-          })}
+            )}
+          </div>
 
-          {profileRole === 'vendor' && (
-            <button
-              onClick={() => setView(view === 'dashboard' ? 'home' : 'dashboard')}
-              className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
-                view === 'dashboard'
-                  ? 'bg-[#1B5E3E] text-white'
-                  : 'text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]'
-              }`}
-            >
-              Dashboard
-            </button>
-          )}
-
-          <div className="ml-auto relative">
+          <div className="relative shrink-0">
             {authUser ? (
               <>
                 <button
@@ -497,14 +499,20 @@ function App() {
                   </span>
                 </button>
                 {accountMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-[#e5e7eb] py-2 min-w-[160px] z-20">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-[#111827] hover:bg-[#f7f8fa]"
-                    >
-                      Log out
-                    </button>
-                  </div>
+                  <>
+                    <div
+                      className="fixed inset-0 z-20"
+                      onClick={() => setAccountMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-[#e5e7eb] py-2 min-w-[160px] z-30">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full text-left px-4 py-2 text-sm text-[#111827] hover:bg-[#f7f8fa]"
+                      >
+                        Log out
+                      </button>
+                    </div>
+                  </>
                 )}
               </>
             ) : (
