@@ -846,7 +846,7 @@ function App() {
                     <p className="text-[#667085] text-sm leading-snug">{product.description}</p>
                   </div>
                   <footer className="mt-auto flex items-center justify-between gap-3 px-4 pt-2 pb-4">
-                    <strong className="text-[#111827]">₦{product.price.toLocaleString()}</strong>
+                    <strong className="text-[#111827]">₦{(Number(product.price) || 0).toLocaleString()}</strong>
                     <button
                       onClick={() => addToBasket(product)}
                       className="rounded-full bg-[#1B5E3E] text-white font-bold px-4 py-2 hover:bg-[#144d32] transition-colors text-sm shadow-md"
@@ -880,7 +880,7 @@ function App() {
                     className="min-h-[44px] rounded-xl bg-[#f7f8fa] flex justify-between gap-3 items-center px-3 py-2"
                   >
                     <span className="text-[#667085] text-sm">{item.name}</span>
-                    <strong className="text-[#111827] whitespace-nowrap text-sm">₦{item.price.toLocaleString()}</strong>
+                    <strong className="text-[#111827] whitespace-nowrap text-sm">₦{(Number(item.price) || 0).toLocaleString()}</strong>
                   </div>
                 ))
               )}
@@ -928,12 +928,14 @@ function App() {
                 <p className="text-xs text-[#667085] py-3">No vendors available right now.</p>
               ) : (
                 vendors.map((vendor) => {
-                  const initials = vendor.name
+                  const initials = (vendor.name ?? '')
                     .split(' ')
+                    .filter(Boolean)
                     .map((w) => w[0])
                     .join('')
                     .slice(0, 2)
-                    .toUpperCase();
+                    .toUpperCase() || 'V';
+
                   return (
                     <div key={vendor.id} className="flex items-center gap-3 py-3 border-t border-[#e5e7eb]">
                       {vendor.logo_url ? (
