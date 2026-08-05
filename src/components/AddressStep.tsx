@@ -1,67 +1,61 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 
-interface AddressRow {
+export interface AddressRow {
   id: string;
   label: string | null;
   street_address: string;
   city: string;
   state: string;
-  is_default: boolean | null;
 }
 
 interface AddressStepProps {
-  open: boolean;
   userId: string;
+  open: boolean;
   onClose: () => void;
   onConfirm: (addressId: string) => void;
 }
 
-const NEW_ADDRESS_VALUE = '__new__';
-
-export function AddressStep({ open, userId, onClose, onConfirm }: AddressStepProps) {
+export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepProps) {
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
-  const [addressesLoading, setAddressesLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string>(NEW_ADDRESS_VALUE);
-
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [mode, setMode] = useState<'pick' | 'new'>('new');
   const [label, setLabel] = useState('');
-  const [streetAddress, setStreetAddress] = useState('');
+  const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-
+  const [stateName, setStateName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-
     let cancelled = false;
+    setLoading(true);
     setError(null);
-    setAddressesLoading(true);
-
     (async () => {
-      const { data, error: fetchErr } = await supabase
+      const { data, error: err } = await supabase
         .from('addresses')
-        .select('id, label, street_address, city, state, is_default')
+        .select('id, label, street_address, city, state')
         .eq('user_id', userId)
-        .order('is_default', { ascending: false })
         .order('created_at', { ascending: false });
-
       if (cancelled) return;
-
-      if (fetchErr) {
-        setError(fetchErr.message);
+      if (err) {
+        console.error('Failed to load addresses', err);
         setAddresses([]);
-        setSelectedId(NEW_ADDRESS_VALUE);
+        setMode('new');
       } else {
         const rows = data ?? [];
         setAddresses(rows);
-        setSelectedId(rows.length > 0 ? rows[0].id : NEW_ADDRESS_VALUE);
+        if (rows.length > 0) {
+          setMode('pick');
+          setSelectedId(rows[0].id);
+        } else {
+          setMode('new');
+        }
       }
-      setAddressesLoading(false);
+      setLoading(false);
     })();
-
     return () => {
       cancelled = true;
     };
@@ -69,134 +63,122 @@ export function AddressStep({ open, userId, onClose, onConfirm }: AddressStepPro
 
   if (!open) return null;
 
-  const isAddingNew = selectedId === NEW_ADDRESS_VALUE;
-
-  const resetNewAddressForm = () => {
-    setLabel('');
-    setStreetAddress('');
-    setCity('');
-    setState('');
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!isAddingNew) {
+    if (mode === 'pick') {
+      if (!selectedId) {
+        setError('Please choose a delivery address.');
+        return;
+      }
       onConfirm(selectedId);
       return;
     }
 
-    const trimmedStreet = streetAddress.trim();
-    const trimmedCity = city.trim();
-    const trimmedState = state.trim();
-
-    if (!trimmedStreet || !trimmedCity || !trimmedState) {
-      setError('Street address, city, and state are required.');
+    const trimmed = {
+      street_address: street.trim(),
+      city: city.trim(),
+      state: stateName.trim(),
+      label: label.trim() || null,
+    };
+    if (!trimmed.street_address || !trimmed.city || !trimmed.state) {
+      setError('Street address, city and state are required.');
+      return;
+    }
+    if (trimmed.street_address.length > 200 || trimmed.city.length > 80 || trimmed.state.length > 80) {
+      setError('Please shorten your address details.');
       return;
     }
 
     setSaving(true);
-    try {
-      const { data, error: insertErr } = await supabase
-        .from('addresses')
-        .insert({
-          user_id: userId,
-          label: label.trim() || null,
-          street_address: trimmedStreet,
-          city: trimmedCity,
-          state: trimmedState,
-          is_default: addresses.length === 0,
-        })
-        .select('id')
-        .single();
-
-      if (insertErr) throw insertErr;
-
-      resetNewAddressForm();
-      onConfirm(data.id);
-    } catch (err: any) {
-      setError(err.message || 'Could not save this address. Please try again.');
-    } finally {
-      setSaving(false);
+    const { data, error: insertErr } = await supabase
+      .from('addresses')
+      .insert({ ...trimmed, user_id: userId })
+      .select('id')
+      .single();
+    setSaving(false);
+    if (insertErr || !data) {
+      console.error('Failed to save address', insertErr);
+      setError(insertErr?.message || 'Could not save your address. Please try again.');
+      return;
     }
+    onConfirm(data.id);
   };
 
+  const inputClass =
+    'w-full min-h-[46px] rounded-xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none focus:border-[#1B5E3E]';
+
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 grid place-items-center rounded-full hover:bg-[#f7f8fa]"
-          aria-label="Close"
-        >
-          <X className="w-5 h-5 text-[#667085]" />
-        </button>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-4 py-8 overflow-y-auto">
+      <div className="w-full max-w-[420px] rounded-2xl bg-white p-6 shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
+        <p className="text-[#1B5E3E] text-xs font-black uppercase tracking-wider mb-1.5">
+          Step 1 of 2
+        </p>
+        <h2 className="text-xl font-bold text-[#111827] mb-4">Delivery address</h2>
 
-        <h2 className="text-2xl font-bold text-[#111827] mb-1">Delivery address</h2>
-        <p className="text-sm text-[#667085] mb-6">Where should we deliver this order?</p>
-
-        {addressesLoading ? (
-          <p className="text-sm text-[#667085] py-3">Loading your addresses…</p>
+        {loading ? (
+          <p className="text-sm text-[#667085] py-4">Loading your addresses…</p>
         ) : (
           <form onSubmit={handleSubmit} className="grid gap-3">
             {addresses.length > 0 && (
-              <div className="grid gap-1.5">
-                <label className="text-xs font-bold text-[#667085] uppercase tracking-wider">
-                  Saved addresses
-                </label>
+              <>
+                <label className="text-sm font-bold text-[#111827]">Deliver to</label>
                 <select
-                  value={selectedId}
-                  onChange={(e) => setSelectedId(e.target.value)}
-                  className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E] bg-white"
+                  value={mode === 'new' ? '__new' : selectedId}
+                  onChange={(e) => {
+                    if (e.target.value === '__new') {
+                      setMode('new');
+                    } else {
+                      setMode('pick');
+                      setSelectedId(e.target.value);
+                    }
+                  }}
+                  className={inputClass}
                 >
-                  {addresses.map((addr) => (
-                    <option key={addr.id} value={addr.id}>
-                      {addr.label ? `${addr.label} — ` : ''}
-                      {addr.street_address}, {addr.city}
+                  {addresses.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label ? `${a.label} — ` : ''}
+                      {a.street_address}, {a.city}, {a.state}
                     </option>
                   ))}
-                  <option value={NEW_ADDRESS_VALUE}>+ Add a new address</option>
+                  <option value="__new">+ Add a new address</option>
                 </select>
-              </div>
+              </>
             )}
 
-            {isAddingNew && (
+            {mode === 'new' && (
               <>
                 <input
-                  type="text"
-                  placeholder='Label (optional, e.g. "Home")'
+                  className={inputClass}
+                  placeholder="Label (optional) e.g. Home, Office"
                   value={label}
+                  maxLength={40}
                   onChange={(e) => setLabel(e.target.value)}
-                  className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E]"
                 />
                 <input
-                  type="text"
-                  required
+                  className={inputClass}
                   placeholder="Street address"
-                  value={streetAddress}
-                  onChange={(e) => setStreetAddress(e.target.value)}
-                  className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E]"
+                  value={street}
+                  maxLength={200}
+                  onChange={(e) => setStreet(e.target.value)}
                 />
-                <input
-                  type="text"
-                  required
-                  placeholder="City"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E]"
-                />
-                <input
-                  type="text"
-                  required
-                  placeholder="State"
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E]"
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    className={inputClass}
+                    placeholder="City"
+                    value={city}
+                    maxLength={80}
+                    onChange={(e) => setCity(e.target.value)}
+                  />
+                  <input
+                    className={inputClass}
+                    placeholder="State"
+                    value={stateName}
+                    maxLength={80}
+                    onChange={(e) => setStateName(e.target.value)}
+                  />
+                </div>
               </>
             )}
 
@@ -205,9 +187,16 @@ export function AddressStep({ open, userId, onClose, onConfirm }: AddressStepPro
             <button
               type="submit"
               disabled={saving}
-              className="w-full min-h-[48px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] transition-colors shadow-md disabled:opacity-60"
+              className="mt-1 w-full min-h-[48px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] transition-colors shadow-md disabled:opacity-60"
             >
-              {saving ? 'Saving…' : 'Continue to payment'}
+              {saving ? 'Saving address…' : 'Continue to payment'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full min-h-[44px] rounded-full bg-[#f7f8fa] text-[#667085] font-bold hover:bg-[#e5e7eb] transition-colors"
+            >
+              Cancel
             </button>
           </form>
         )}
