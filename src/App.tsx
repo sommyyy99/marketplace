@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { User as SupaUser } from '@supabase/supabase-js';
 import { supabase } from './integrations/supabase/client';
 import { AuthModal } from './components/AuthModal';
+import { AddressStep } from './components/AddressStep';
 import { VendorDashboard } from './components/VendorDashboard';
 
 interface VendorRow {
@@ -84,6 +85,7 @@ function App() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const [addressStepOpen, setAddressStepOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -228,7 +230,7 @@ function App() {
   }, []);
 
   const createOrder = useCallback(
-    async (vendorId: string, subtotal: number, orderTotal: number, reference: string) => {
+    async (vendorId: string, subtotal: number, orderTotal: number, reference: string, addressId: string) => {
       const { data: order, error: orderErr } = await supabase
         .from('orders')
         .insert({
@@ -240,6 +242,7 @@ function App() {
           status: 'placed',
           payment_status: 'paid',
           payment_reference: reference,
+          delivery_address_id: addressId,
         })
         .select('id')
         .single();
@@ -259,7 +262,65 @@ function App() {
     [authUser, basket],
   );
 
-  const handleCheckout = useCallback(async () => {
+  // Kicks off the Paystack popup once a delivery address has been chosen/saved.
+  const proceedToPayment = useCallback(
+    async (addressId: string) => {
+      if (!authUser) return;
+
+      const vendorId = basket[0]?.vendorId;
+      if (!vendorId) {
+        setCheckoutMessage({ kind: 'error', text: "This item isn't linked to a vendor yet." });
+        return;
+      }
+
+      const email = authUser.email;
+      if (!email) {
+        setCheckoutMessage({ kind: 'error', text: 'Your account has no email for payment.' });
+        return;
+      }
+
+      setCheckoutLoading(true);
+      try {
+        const subtotal = basket.reduce((s, it) => s + it.price, 0);
+        const orderTotal = subtotal + deliveryFee + serviceFee;
+
+        const PaystackPop = await loadPaystack();
+        const handler = PaystackPop.setup({
+          key: 'pk_test_772559f6395e880ab255aa37da7ad977d918cb09',
+          email,
+          amount: Math.round(orderTotal * 100),
+          currency: 'NGN',
+          callback: (response: { reference: string }) => {
+            (async () => {
+              try {
+                await createOrder(vendorId, subtotal, orderTotal, response.reference, addressId);
+                setBasket([]);
+                setCheckoutMessage({ kind: 'success', text: `Payment successful! Order placed (ref ${response.reference}).` });
+              } catch (err: any) {
+                console.error('Order creation failed', err);
+                setCheckoutMessage({ kind: 'error', text: err.message || 'Payment succeeded but order failed to save. Contact support.' });
+              } finally {
+                setCheckoutLoading(false);
+              }
+            })();
+          },
+          onClose: () => {
+            setCheckoutLoading(false);
+            setCheckoutMessage({ kind: 'error', text: 'Payment cancelled. Your order was not placed.' });
+          },
+        });
+        handler.openIframe();
+      } catch (err: any) {
+        console.error('Checkout failed', err);
+        setCheckoutMessage({ kind: 'error', text: err.message || 'Checkout failed. Please try again.' });
+        setCheckoutLoading(false);
+      }
+    },
+    [authUser, basket, loadPaystack, createOrder],
+  );
+
+  // Validates the basket, then opens the delivery-address step before payment.
+  const handleCheckout = useCallback(() => {
     setCheckoutMessage(null);
     if (!authUser) {
       setAuthOpen(true);
@@ -276,50 +337,21 @@ function App() {
       setCheckoutMessage({ kind: 'error', text: 'All items must be from the same vendor.' });
       return;
     }
-
-    const email = authUser.email;
-    if (!email) {
+    if (!authUser.email) {
       setCheckoutMessage({ kind: 'error', text: 'Your account has no email for payment.' });
       return;
     }
 
-    setCheckoutLoading(true);
-    try {
-      const subtotal = basket.reduce((s, it) => s + it.price, 0);
-      const orderTotal = subtotal + deliveryFee + serviceFee;
+    setAddressStepOpen(true);
+  }, [authUser, basket]);
 
-      const PaystackPop = await loadPaystack();
-      const handler = PaystackPop.setup({
-        key: 'pk_test_772559f6395e880ab255aa37da7ad977d918cb09',
-        email,
-        amount: Math.round(orderTotal * 100),
-        currency: 'NGN',
-        callback: (response: { reference: string }) => {
-          (async () => {
-            try {
-              await createOrder(vendorId, subtotal, orderTotal, response.reference);
-              setBasket([]);
-              setCheckoutMessage({ kind: 'success', text: `Payment successful! Order placed (ref ${response.reference}).` });
-            } catch (err: any) {
-              console.error('Order creation failed', err);
-              setCheckoutMessage({ kind: 'error', text: err.message || 'Payment succeeded but order failed to save. Contact support.' });
-            } finally {
-              setCheckoutLoading(false);
-            }
-          })();
-        },
-        onClose: () => {
-          setCheckoutLoading(false);
-          setCheckoutMessage({ kind: 'error', text: 'Payment cancelled. Your order was not placed.' });
-        },
-      });
-      handler.openIframe();
-    } catch (err: any) {
-      console.error('Checkout failed', err);
-      setCheckoutMessage({ kind: 'error', text: err.message || 'Checkout failed. Please try again.' });
-      setCheckoutLoading(false);
-    }
-  }, [authUser, basket, loadPaystack, createOrder]);
+  const handleAddressConfirmed = useCallback(
+    (addressId: string) => {
+      setAddressStepOpen(false);
+      proceedToPayment(addressId);
+    },
+    [proceedToPayment],
+  );
 
   const total = useMemo(() => {
     return basket.reduce((sum, item) => sum + item.price, 0) + deliveryFee + serviceFee;
@@ -528,6 +560,14 @@ function App() {
       </nav>
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+      {authUser && (
+        <AddressStep
+          open={addressStepOpen}
+          userId={authUser.id}
+          onClose={() => setAddressStepOpen(false)}
+          onConfirm={handleAddressConfirmed}
+        />
+      )}
 
       {view === 'dashboard' && authUser && profileRole === 'vendor' ? (
         <VendorDashboard userId={authUser.id} />
