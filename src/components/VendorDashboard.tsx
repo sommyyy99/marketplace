@@ -115,6 +115,10 @@ export function VendorDashboard({ userId }: Props) {
       <div className="grid gap-4">
         {orders.map((order) => {
           const next = nextStatus(order.status);
+          const items = Array.isArray(order.order_items) ? order.order_items : [];
+          const statusLabel = (order.status ?? 'placed').replace(/_/g, ' ');
+          const paymentLabel = order.payment_status ?? 'pending';
+          const orderTotal = Number(order.total) || 0;
           return (
             <div
               key={order.id}
@@ -126,7 +130,7 @@ export function VendorDashboard({ userId }: Props) {
                     {order.customer?.full_name || 'Customer'}
                   </p>
                   <p className="text-xs text-[#667085] mt-0.5">
-                    Order #{order.id.slice(0, 8)} ·{' '}
+                    Order #{(order.id ?? '').slice(0, 8)} ·{' '}
                     {order.placed_at
                       ? new Date(order.placed_at).toLocaleString()
                       : '—'}
@@ -142,7 +146,7 @@ export function VendorDashboard({ userId }: Props) {
                         : 'bg-blue-100 text-blue-800'
                     }`}
                   >
-                    {order.status.replace(/_/g, ' ')}
+                    {statusLabel}
                   </span>
                   <span
                     className={`px-3 py-1 rounded-full font-bold capitalize ${
@@ -151,28 +155,33 @@ export function VendorDashboard({ userId }: Props) {
                         : 'bg-gray-100 text-gray-700'
                     }`}
                   >
-                    {order.payment_status}
+                    {paymentLabel}
                   </span>
                 </div>
               </div>
 
               <ul className="text-sm text-[#111827] mb-3 divide-y divide-[#f0f1f3]">
-                {order.order_items?.map((it) => (
-                  <li key={it.id} className="py-1.5 flex justify-between">
-                    <span>
-                      {it.quantity} × {it.name}
-                    </span>
-                    <span className="text-[#667085]">
-                      ₦{(it.price * it.quantity).toLocaleString()}
-                    </span>
-                  </li>
-                ))}
+                {items.length === 0 ? (
+                  <li className="py-1.5 text-[#667085]">No items recorded.</li>
+                ) : (
+                  items.map((it) => (
+                    <li key={it.id} className="py-1.5 flex justify-between">
+                      <span>
+                        {Number(it.quantity) || 0} × {it.name || 'Item'}
+                      </span>
+                      <span className="text-[#667085]">
+                        ₦{((Number(it.price) || 0) * (Number(it.quantity) || 0)).toLocaleString()}
+                      </span>
+                    </li>
+                  ))
+                )}
               </ul>
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#f0f1f3]">
                 <p className="font-black text-[#111827]">
-                  Total: ₦{Number(order.total).toLocaleString()}
+                  Total: ₦{orderTotal.toLocaleString()}
                 </p>
+
                 <div className="flex items-center gap-2">
                   <select
                     value={order.status}
