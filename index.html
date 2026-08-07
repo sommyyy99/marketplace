@@ -2,15 +2,45 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title data-default>Vite + React + TS</title>
-    <meta property="og:image" content="https://bolt.new/static/og_default.png" />
+    <title>Sommygo | Local Food Delivery</title>
+    <meta name="description" content="Order meals and essentials from trusted local vendors with Sommygo." />
+    <meta property="og:title" content="Sommygo | Local Food Delivery" />
+    <meta property="og:description" content="Order meals and essentials from trusted local vendors with Sommygo." />
+    <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://bolt.new/static/og_default.png" />
+    <style>
+      #startup-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        box-sizing: border-box;
+        padding: 24px;
+        background: #fdf8ec;
+        color: #111827;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      #startup-shell section { width: min(100%, 440px); text-align: center; }
+      #startup-shell strong { display: block; margin-bottom: 10px; color: #1b5e3e; font-size: 28px; }
+      #startup-shell p { margin: 0 0 18px; color: #667085; line-height: 1.5; }
+      #startup-shell .startup-track { height: 4px; overflow: hidden; border-radius: 999px; background: #dce8df; }
+      #startup-shell .startup-progress { width: 42%; height: 100%; border-radius: inherit; background: #1b5e3e; animation: startup-move 1.2s ease-in-out infinite alternate; }
+      #startup-shell button { min-height: 44px; margin-top: 22px; padding: 0 22px; border: 1px solid #1b5e3e; border-radius: 999px; background: transparent; color: #1b5e3e; font: inherit; font-weight: 700; cursor: pointer; }
+      @keyframes startup-move { from { transform: translateX(0); } to { transform: translateX(138%); } }
+      @media (prefers-reduced-motion: reduce) { #startup-shell .startup-progress { animation: none; width: 100%; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main id="startup-shell" data-startup-shell>
+        <section aria-live="polite">
+          <strong>Sommygo</strong>
+          <p>Reconnecting to your preview…</p>
+          <div class="startup-track" aria-hidden="true"><div class="startup-progress"></div></div>
+          <button type="button" onclick="window.location.reload()">Reload preview</button>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
