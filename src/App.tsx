@@ -90,35 +90,67 @@ function App() {
   const [becomeVendorOpen, setBecomeVendorOpen] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setAuthUser(data.session?.user ?? null);
-    });
+    let cancelled = false;
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error) throw error;
+        if (!cancelled) setAuthUser(data.session?.user ?? null);
+      })
+      .catch((error) => {
+        console.error('Failed to restore the saved session:', error);
+        if (!cancelled) {
+          setAuthUser(null);
+          setProfileName(null);
+          setProfileRole(null);
+          setView('home');
+        }
+      });
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
       setAuthUser(session?.user ?? null);
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
     if (!authUser) {
       setProfileName(null);
+      setProfileRole(null);
+      setView('home');
       return;
     }
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('full_name, role')
-        .eq('id', authUser.id)
-        .maybeSingle();
-      if (!cancelled) {
-        setProfileName(
-          data?.full_name ||
-            (authUser.user_metadata?.full_name as string | undefined) ||
-            authUser.email ||
-            null,
-        );
-        setProfileRole(data?.role ?? null);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('full_name, role')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!cancelled) {
+          const role = typeof data?.role === 'string' ? data.role.trim().toLowerCase() : null;
+          const fullName = typeof data?.full_name === 'string' ? data.full_name.trim() : '';
+          const metadataName = typeof authUser.user_metadata?.full_name === 'string'
+            ? authUser.user_metadata.full_name.trim()
+            : '';
+          setProfileName(fullName || metadataName || authUser.email || null);
+          setProfileRole(role === 'vendor' || role === 'customer' ? role : null);
+          if (role !== 'vendor') setView('home');
+        }
+      } catch (error) {
+        console.error('Failed to load the account profile:', error);
+        if (!cancelled) {
+          const metadataName = typeof authUser.user_metadata?.full_name === 'string'
+            ? authUser.user_metadata.full_name.trim()
+            : '';
+          setProfileName(metadataName || authUser.email || null);
+          setProfileRole(null);
+          setView('home');
+        }
       }
     })();
     return () => {
@@ -233,10 +265,11 @@ function App() {
 
   const createOrder = useCallback(
     async (vendorId: string, subtotal: number, orderTotal: number, reference: string, addressId: string) => {
+      if (!authUser) throw new Error('Please sign in again before placing your order.');
       const { data: order, error: orderErr } = await supabase
         .from('orders')
         .insert({
-          customer_id: authUser!.id,
+          customer_id: authUser.id,
           vendor_id: vendorId,
           subtotal,
           delivery_fee: deliveryFee,
@@ -368,6 +401,8 @@ function App() {
 
 
   const services = ['Food', 'Groceries', 'Pharmacy', 'Shops'];
+
+  const hasVendorDashboardAccess = Boolean(authUser && profileRole === 'vendor');
 
   return (
     <div className="min-h-screen w-full overflow-hidden bg-white">
@@ -504,7 +539,7 @@ function App() {
               );
             })}
 
-            {profileRole === 'vendor' && (
+            {hasVendorDashboardAccess && (
               <button
                 onClick={() => setView(view === 'dashboard' ? 'home' : 'dashboard')}
                 className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
@@ -592,7 +627,7 @@ function App() {
         />
       )}
 
-      {view === 'dashboard' && authUser && profileRole === 'vendor' ? (
+      {view === 'dashboard' && authUser && hasVendorDashboardAccess ? (
         <VendorDashboard userId={authUser.id} />
       ) : (
       <>
