@@ -24,6 +24,14 @@ interface OrderRow {
   order_items: OrderItem[];
 }
 
+interface MenuItemRow {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  is_available: boolean | null;
+}
+
 interface Props {
   userId: string;
 }
@@ -34,6 +42,15 @@ export function VendorDashboard({ userId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'orders' | 'menu'>('orders');
+
+  const [menuItems, setMenuItems] = useState<MenuItemRow[]>([]);
+  const [menuError, setMenuError] = useState<string | null>(null);
+  const [menuBusyId, setMenuBusyId] = useState<string | null>(null);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemPrice, setNewItemPrice] = useState('');
+  const [newItemDescription, setNewItemDescription] = useState('');
+  const [addingItem, setAddingItem] = useState(false);
 
   const loadOrders = useCallback(async (vId: string) => {
     const { data, error: err } = await supabase
@@ -48,6 +65,20 @@ export function VendorDashboard({ userId }: Props) {
       setOrders([]);
     } else {
       setOrders((data as unknown as OrderRow[]) ?? []);
+    }
+  }, []);
+
+  const loadMenuItems = useCallback(async (vId: string) => {
+    const { data, error: err } = await supabase
+      .from('menu_items')
+      .select('id, name, description, price, is_available')
+      .eq('vendor_id', vId)
+      .order('name', { ascending: true });
+    if (err) {
+      setMenuError(err.message);
+      setMenuItems([]);
+    } else {
+      setMenuItems((data as MenuItemRow[]) ?? []);
     }
   }, []);
 
@@ -68,13 +99,81 @@ export function VendorDashboard({ userId }: Props) {
         return;
       }
       setVendorId(vendor.id);
-      await loadOrders(vendor.id);
+      await Promise.all([loadOrders(vendor.id), loadMenuItems(vendor.id)]);
       if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId, loadOrders]);
+  }, [userId, loadOrders, loadMenuItems]);
+
+  const handleAddItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vendorId) return;
+    setMenuError(null);
+
+    const trimmedName = newItemName.trim();
+    const priceValue = Number(newItemPrice);
+    if (!trimmedName || !newItemPrice || Number.isNaN(priceValue) || priceValue <= 0) {
+      setMenuError('Enter a valid item name and price.');
+      return;
+    }
+
+    setAddingItem(true);
+    try {
+      const { error: insertErr } = await supabase.from('menu_items').insert({
+        vendor_id: vendorId,
+        name: trimmedName,
+        price: priceValue,
+        description: newItemDescription.trim() || null,
+        is_available: true,
+      });
+      if (insertErr) throw insertErr;
+
+      setNewItemName('');
+      setNewItemPrice('');
+      setNewItemDescription('');
+      await loadMenuItems(vendorId);
+    } catch (err: any) {
+      setMenuError(err.message || 'Could not add this item. Please try again.');
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  const toggleAvailability = async (item: MenuItemRow) => {
+    if (!vendorId) return;
+    setMenuBusyId(item.id);
+    const { error: err } = await supabase
+      .from('menu_items')
+      .update({ is_available: !item.is_available })
+      .eq('id', item.id);
+    if (err) setMenuError(err.message);
+    else await loadMenuItems(vendorId);
+    setMenuBusyId(null);
+  };
+
+  const updateItemPrice = async (item: MenuItemRow, newPrice: number) => {
+    if (!vendorId || Number.isNaN(newPrice) || newPrice <= 0) return;
+    setMenuBusyId(item.id);
+    const { error: err } = await supabase
+      .from('menu_items')
+      .update({ price: newPrice })
+      .eq('id', item.id);
+    if (err) setMenuError(err.message);
+    else await loadMenuItems(vendorId);
+    setMenuBusyId(null);
+  };
+
+  const deleteItem = async (item: MenuItemRow) => {
+    if (!vendorId) return;
+    if (!window.confirm(`Remove "${item.name}" from your menu?`)) return;
+    setMenuBusyId(item.id);
+    const { error: err } = await supabase.from('menu_items').delete().eq('id', item.id);
+    if (err) setMenuError(err.message);
+    else await loadMenuItems(vendorId);
+    setMenuBusyId(null);
+  };
 
   const updateStatus = async (orderId: string, newStatus: Status) => {
     setUpdatingId(orderId);
@@ -101,17 +200,134 @@ export function VendorDashboard({ userId }: Props) {
     <main className="w-full max-w-[1200px] mx-auto px-6 py-8">
       <h1 className="text-3xl font-black text-[#111827] mb-6">Vendor Dashboard</h1>
 
-      {loading && <p className="text-[#667085]">Loading orders...</p>}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setTab('orders')}
+          className={`min-h-[40px] rounded-full px-4 text-sm font-bold transition-colors ${
+            tab === 'orders' ? 'bg-[#1B5E3E] text-white' : 'bg-[#f7f8fa] text-[#667085] hover:text-[#111827]'
+          }`}
+        >
+          Orders
+        </button>
+        <button
+          onClick={() => setTab('menu')}
+          className={`min-h-[40px] rounded-full px-4 text-sm font-bold transition-colors ${
+            tab === 'menu' ? 'bg-[#1B5E3E] text-white' : 'bg-[#f7f8fa] text-[#667085] hover:text-[#111827]'
+          }`}
+        >
+          Your Menu
+        </button>
+      </div>
+
+      {loading && <p className="text-[#667085]">Loading...</p>}
       {error && (
         <div className="rounded-xl bg-red-50 border border-red-200 text-red-800 px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}
 
-      {!loading && !error && orders.length === 0 && (
+      {!loading && !error && tab === 'menu' && (
+        <div>
+          <form
+            onSubmit={handleAddItem}
+            className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm mb-6 grid gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-start"
+          >
+            <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[2fr_1fr]">
+              <input
+                type="text"
+                required
+                placeholder="Item name"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E]"
+              />
+              <input
+                type="number"
+                min="1"
+                step="1"
+                required
+                placeholder="Price (₦)"
+                value={newItemPrice}
+                onChange={(e) => setNewItemPrice(e.target.value)}
+                className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E]"
+              />
+            </div>
+            <input
+              type="text"
+              placeholder="Description (optional)"
+              value={newItemDescription}
+              onChange={(e) => setNewItemDescription(e.target.value)}
+              className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E] sm:col-span-2"
+            />
+            <button
+              type="submit"
+              disabled={addingItem}
+              className="min-h-[44px] rounded-full bg-[#1B5E3E] text-white font-bold px-5 text-sm hover:bg-[#144d32] disabled:opacity-60 sm:col-span-1"
+            >
+              {addingItem ? 'Adding…' : 'Add item'}
+            </button>
+            {menuError && <p className="text-sm text-red-600 sm:col-span-3">{menuError}</p>}
+          </form>
+
+          {menuItems.length === 0 ? (
+            <p className="text-[#667085]">You haven't added any menu items yet.</p>
+          ) : (
+            <div className="grid gap-3">
+              {menuItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white border border-[#e5e7eb] rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-bold text-[#111827]">{item.name}</p>
+                    {item.description && (
+                      <p className="text-sm text-[#667085] truncate max-w-[320px]">{item.description}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      defaultValue={item.price}
+                      disabled={menuBusyId === item.id}
+                      onBlur={(e) => {
+                        const val = Number(e.target.value);
+                        if (val !== item.price) updateItemPrice(item, val);
+                      }}
+                      className="w-24 rounded-full border border-[#e5e7eb] px-3 py-1.5 text-sm"
+                    />
+                    <button
+                      onClick={() => toggleAvailability(item)}
+                      disabled={menuBusyId === item.id}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                        item.is_available
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {item.is_available ? 'Available' : 'Unavailable'}
+                    </button>
+                    <button
+                      onClick={() => deleteItem(item)}
+                      disabled={menuBusyId === item.id}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 text-red-700 hover:bg-red-100"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && tab === 'orders' && orders.length === 0 && (
         <p className="text-[#667085]">No orders yet.</p>
       )}
 
+      {!loading && !error && tab === 'orders' && (
       <div className="grid gap-4">
         {orders.map((order) => {
           const next = nextStatus(order.status);
@@ -210,6 +426,7 @@ export function VendorDashboard({ userId }: Props) {
           );
         })}
       </div>
+      )}
     </main>
   );
 }

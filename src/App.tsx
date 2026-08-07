@@ -3,6 +3,7 @@ import type { User as SupaUser } from '@supabase/supabase-js';
 import { supabase } from './integrations/supabase/client';
 import { AuthModal } from './components/AuthModal';
 import { AddressStep } from './components/AddressStep';
+import { BecomeVendorModal } from './components/BecomeVendorModal';
 import { VendorDashboard } from './components/VendorDashboard';
 
 interface VendorRow {
@@ -86,6 +87,7 @@ function App() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [addressStepOpen, setAddressStepOpen] = useState(false);
+  const [becomeVendorOpen, setBecomeVendorOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -514,6 +516,15 @@ function App() {
                 Dashboard
               </button>
             )}
+
+            {authUser && profileRole && profileRole !== 'vendor' && (
+              <button
+                onClick={() => setBecomeVendorOpen(true)}
+                className="min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]"
+              >
+                Become a vendor
+              </button>
+            )}
           </div>
 
           <div className="relative shrink-0">
@@ -566,6 +577,18 @@ function App() {
           userId={authUser.id}
           onClose={() => setAddressStepOpen(false)}
           onConfirm={handleAddressConfirmed}
+        />
+      )}
+      {authUser && (
+        <BecomeVendorModal
+          open={becomeVendorOpen}
+          userId={authUser.id}
+          onClose={() => setBecomeVendorOpen(false)}
+          onSuccess={() => {
+            setBecomeVendorOpen(false);
+            setProfileRole('vendor');
+            setView('dashboard');
+          }}
         />
       )}
 
