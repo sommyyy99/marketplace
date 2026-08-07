@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { supabase } from '../integrations/supabase/client';
 
 interface Props {
   children: ReactNode;
@@ -19,6 +20,16 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('App crashed:', error, info.componentStack);
   }
 
+  private continueSignedOut = async () => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.error('Could not clear the local session:', error);
+    } finally {
+      window.location.reload();
+    }
+  };
+
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
@@ -34,15 +45,23 @@ export class ErrorBoundary extends Component<Props, State> {
             {error.message}
             {error.stack ? `\n\n${error.stack}` : ''}
           </pre>
-          <button
-            onClick={() => {
-              this.setState({ error: null });
-              window.location.reload();
-            }}
-            className="w-full min-h-[46px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] transition-colors"
-          >
-            Reload the app
-          </button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              onClick={() => {
+                this.setState({ error: null });
+                window.location.reload();
+              }}
+              className="w-full min-h-[46px] rounded-full border border-[#1B5E3E] bg-white text-[#1B5E3E] font-bold hover:bg-[#f7f8fa] transition-colors"
+            >
+              Reload the app
+            </button>
+            <button
+              onClick={this.continueSignedOut}
+              className="w-full min-h-[46px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] transition-colors"
+            >
+              Continue signed out
+            </button>
+          </div>
         </div>
       </div>
     );
