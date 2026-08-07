@@ -9,7 +9,10 @@ const rootElement = document.getElementById('root');
 
 function showStartupRecovery(error: unknown) {
   console.error('App startup failed:', error);
-  if (!rootElement || rootElement.childElementCount > 0) return;
+  if (!rootElement) return;
+
+  const startupShell = rootElement.querySelector('[data-startup-shell]');
+  if (rootElement.childElementCount > 0 && !startupShell) return;
 
   const recovery = document.createElement('div');
   recovery.className = 'min-h-screen grid place-items-center bg-[#fdf8ec] px-4 py-10';
@@ -49,6 +52,7 @@ if (!rootElement) {
 }
 
 try {
+  rootElement.replaceChildren();
   createRoot(rootElement).render(
     <StrictMode>
       <ErrorBoundary>
