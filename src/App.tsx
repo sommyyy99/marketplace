@@ -4,6 +4,7 @@ import { supabase } from './integrations/supabase/client';
 import { AuthModal } from './components/AuthModal';
 import { AddressStep } from './components/AddressStep';
 import { BecomeVendorModal } from './components/BecomeVendorModal';
+import { CustomerOrders } from './components/CustomerOrders';
 import { VendorDashboard } from './components/VendorDashboard';
 
 interface VendorRow {
@@ -79,7 +80,7 @@ function App() {
   const [authUser, setAuthUser] = useState<SupaUser | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileRole, setProfileRole] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'dashboard'>('home');
+  const [view, setView] = useState<'home' | 'dashboard' | 'orders'>('home');
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -529,11 +530,27 @@ function App() {
         <div className="max-w-[1200px] mx-auto flex gap-6 items-center">
           <div className="flex gap-6 items-center overflow-x-auto scrollbar-hide flex-1 min-w-0">
             {navItems.map((item) => {
-              const isActive = activeNav === item.label;
+              const isActive = item.label === 'Market' ? view === 'home' : item.label === 'Orders' ? view === 'orders' : activeNav === item.label;
               return (
                 <button
                   key={item.label}
-                  onClick={() => setActiveNav(item.label)}
+                  onClick={() => {
+                    if (item.label === 'Market') {
+                      setView('home');
+                      setActiveNav('Market');
+                      return;
+                    }
+                    if (item.label === 'Orders') {
+                      if (!authUser) {
+                        setAuthOpen(true);
+                        return;
+                      }
+                      setView('orders');
+                      setActiveNav('Orders');
+                      return;
+                    }
+                    setActiveNav(item.label);
+                  }}
                   className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
                     isActive
                       ? 'bg-[#1B5E3E] text-white'
@@ -635,6 +652,8 @@ function App() {
 
       {view === 'dashboard' && authUser && hasVendorDashboardAccess ? (
         <VendorDashboard userId={authUser.id} />
+      ) : view === 'orders' && authUser ? (
+        <CustomerOrders userId={authUser.id} />
       ) : (
       <>
       {/* Main Content */}
