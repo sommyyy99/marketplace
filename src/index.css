@@ -40,14 +40,6 @@ body {
   }
 }
 
-@keyframes truckRight {
-  from {
-    left: -170px;
-  }
-  to {
-    left: 100%;
-  }
-}
 
 
 input[type="search"]::-webkit-search-decoration,

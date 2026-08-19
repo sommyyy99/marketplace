@@ -43,7 +43,6 @@ import egusiSoup from './assets/images/494555509_4031516693793297_21319752940734
 import jollofRice from './assets/images/delicious-jollof-rice-with-grilled-chicken-and-fried-plantains-photo.jpg';
 import wrapsBurgers from './assets/images/image copy copy.png';
 import deliveryBike from './assets/images/delivery-bike.png';
-import deliveryTruck from './assets/images/delivery-truck.png';
 import {
   Search,
   ShoppingCart,
@@ -519,10 +518,6 @@ function App() {
 
 
 
-          {/* Food Truck - left to right */}
-          <div className="absolute bottom-[18px]" style={{ animation: 'truckRight 18s linear infinite', animationDelay: '2s' }}>
-            <img src={deliveryTruck} alt="Food delivery truck" className="w-[200px] h-auto drop-shadow-lg" />
-          </div>
 
           {/* Delivery Motorcycle 2 - right to left, offset */}
           <div className="absolute bottom-[16px]" style={{ animation: 'bikeLeft 16s linear infinite', animationDelay: '5s' }}>
