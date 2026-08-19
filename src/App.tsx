@@ -12,6 +12,7 @@ interface VendorRow {
   avg_rating: number | null;
   logo_url: string | null;
   category: string | null;
+  service_category: string | null;
 }
 
 interface Product {
@@ -19,6 +20,7 @@ interface Product {
   name: string;
   vendor: string;
   vendorId: string | null;
+  serviceCategory: string | null;
   description: string;
   price: number;
   category: string;
@@ -33,7 +35,7 @@ interface MenuItemRow {
   category_id: string | null;
   image_url: string | null;
   vendor_id: string | null;
-  vendors: { name: string } | null;
+  vendors: { name: string; service_category: string | null } | null;
 }
 
 import bakedChicken from './assets/images/Baked-Chicken-Legs-7-of-7-750x750.jpg';
@@ -72,7 +74,7 @@ function App() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [activeNav, setActiveNav] = useState('Market');
-  const [activeService, setActiveService] = useState('Food');
+  const [activeService, setActiveService] = useState('All');
   const [cityOpen, setCityOpen] = useState(false);
   const [vendors, setVendors] = useState<VendorRow[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(true);
@@ -171,7 +173,7 @@ function App() {
     (async () => {
       const { data, error } = await supabase
         .from('vendors')
-        .select('id, name, avg_rating, logo_url, category')
+        .select('id, name, avg_rating, logo_url, category, service_category')
         .eq('is_active', true)
         .eq('is_open', true)
         .order('avg_rating', { ascending: false });
@@ -194,7 +196,7 @@ function App() {
     (async () => {
       const { data, error } = await supabase
         .from('menu_items')
-        .select('id, name, description, price, category_id, image_url, vendor_id, vendors!menu_items_vendor_id_fkey(name)')
+        .select('id, name, description, price, category_id, image_url, vendor_id, vendors!menu_items_vendor_id_fkey(name, service_category)')
         .eq('is_available', true)
         .order('name');
       if (cancelled) return;
@@ -209,6 +211,7 @@ function App() {
             name: item.name,
             vendor: item.vendors?.name ?? 'Local vendor',
             vendorId: item.vendor_id,
+            serviceCategory: item.vendors?.service_category ?? null,
             description: item.description ?? '',
             price: Number(item.price),
             category: item.category_id ?? 'all',
@@ -224,9 +227,20 @@ function App() {
   }, []);
 
   const filteredProducts = useMemo(() => {
-    if (activeCategory === 'all') return products;
-    return products.filter((p) => p.category === activeCategory);
-  }, [activeCategory, products]);
+    let list = products;
+    if (activeService !== 'All') {
+      list = list.filter((p) => p.serviceCategory === activeService);
+    }
+    if (activeCategory !== 'all') {
+      list = list.filter((p) => p.category === activeCategory);
+    }
+    return list;
+  }, [activeCategory, activeService, products]);
+
+  const filteredVendors = useMemo(() => {
+    if (activeService === 'All') return vendors;
+    return vendors.filter((v) => v.service_category === activeService);
+  }, [activeService, vendors]);
 
   const addToBasket = useCallback((product: Product) => {
     setCheckoutMessage(null);
@@ -400,7 +414,7 @@ function App() {
   ];
 
 
-  const services = ['Food', 'Groceries', 'Pharmacy', 'Shops'];
+  const services = ['All', 'Food & Drinks', 'Groceries', 'Pharmacy', 'Fashion', 'Beauty', 'Electronics', 'Services', 'Everything Else'];
 
   const hasVendorDashboardAccess = Boolean(authUser && profileRole === 'vendor');
 
@@ -642,7 +656,7 @@ function App() {
                 Order anything, delivered fast
               </h2>
               <p className="text-[#667085] text-lg leading-relaxed max-w-[480px]">
-                Groceries, shops, pharmaceuticals and more — delivered to your doorstep in minutes.
+                Food, groceries, fashion, electronics and more — delivered to your doorstep.
               </p>
 
               <div className="flex gap-3 mt-6 flex-wrap">
@@ -883,7 +897,11 @@ function App() {
               {productsLoading ? (
                 <p className="text-sm text-[#667085] py-3">Loading menu items...</p>
               ) : filteredProducts.length === 0 ? (
-                <p className="text-sm text-[#667085] py-3">No menu items available right now.</p>
+                <p className="text-sm text-[#667085] py-3">
+                  {activeService === 'All'
+                    ? 'No items available right now.'
+                    : `No ${activeService} items yet — check back soon or try another category.`}
+                </p>
               ) : filteredProducts.map((product, i) => (
                 <article
                   key={product.id}
@@ -982,10 +1000,14 @@ function App() {
               <h3 className="text-sm font-bold text-[#111827] mb-3">Trusted vendors</h3>
               {vendorsLoading ? (
                 <p className="text-xs text-[#667085] py-3">Loading vendors…</p>
-              ) : vendors.length === 0 ? (
-                <p className="text-xs text-[#667085] py-3">No vendors available right now.</p>
+              ) : filteredVendors.length === 0 ? (
+                <p className="text-xs text-[#667085] py-3">
+                  {activeService === 'All'
+                    ? 'No vendors available right now.'
+                    : `No ${activeService} vendors yet.`}
+                </p>
               ) : (
-                vendors.map((vendor) => {
+                filteredVendors.map((vendor) => {
                   const initials = (vendor.name ?? '')
                     .split(' ')
                     .filter(Boolean)
