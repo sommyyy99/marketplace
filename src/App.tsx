@@ -38,9 +38,6 @@ interface MenuItemRow {
   vendors: { name: string; service_category: string | null } | null;
 }
 
-import bakedChicken from './assets/images/Baked-Chicken-Legs-7-of-7-750x750.jpg';
-import egusiSoup from './assets/images/494555509_4031516693793297_2131975294073460328_n.jpg';
-import jollofRice from './assets/images/delicious-jollof-rice-with-grilled-chicken-and-fried-plantains-photo.jpg';
 import wrapsBurgers from './assets/images/image copy copy.png';
 import deliveryBike from './assets/images/delivery-bike.png';
 import {
@@ -486,7 +483,7 @@ function App() {
 
         {/* Headline under address bar */}
         <h1 className="text-center text-[clamp(2rem,5vw,3.5rem)] font-black text-[#111827] tracking-tight mt-6">
-          Food delivery and more
+          Everything you need, delivered
         </h1>
 
         {/* Delivery Illustration: bikes & food trucks */}
@@ -676,48 +673,30 @@ function App() {
             </div>
 
             <div className="relative animate-fade-up animation-delay-120 max-[900px]:order-first">
-              <div className="grid grid-cols-2 gap-3 rounded-3xl">
-                <div className="relative overflow-hidden rounded-2xl aspect-square shadow-lg group">
-                  <img
-                    src={bakedChicken}
-                    alt="Barbecue chicken"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                    <p className="text-white font-bold text-sm">Barbecue Chicken</p>
-                  </div>
+              {filteredProducts.length === 0 ? (
+                <div className="rounded-3xl border border-[#e5e7eb] bg-[#f7f8fa] aspect-square grid place-items-center text-center px-8">
+                  <p className="text-[#667085] text-sm">
+                    {activeService === 'All'
+                      ? 'New listings are on their way — check back soon.'
+                      : `No ${activeService} listings yet — check back soon.`}
+                  </p>
                 </div>
-                <div className="relative overflow-hidden rounded-2xl aspect-square shadow-lg group">
-                  <img
-                    src={egusiSoup}
-                    alt="Egusi soup"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                    <p className="text-white font-bold text-sm">Egusi Soup</p>
-                  </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 rounded-3xl">
+                  {filteredProducts.slice(0, 4).map((product) => (
+                    <div key={product.id} className="relative overflow-hidden rounded-2xl aspect-square shadow-lg group">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                        <p className="text-white font-bold text-sm">{product.name}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="relative overflow-hidden rounded-2xl aspect-square shadow-lg group">
-                  <img
-                    src={jollofRice}
-                    alt="Jollof rice"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                    <p className="text-white font-bold text-sm">Jollof Rice</p>
-                  </div>
-                </div>
-                <div className="relative overflow-hidden rounded-2xl aspect-square shadow-lg group">
-                  <img
-                    src={wrapsBurgers}
-                    alt="Shawarma"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                    <p className="text-white font-bold text-sm">Shawarma</p>
-                  </div>
-                </div>
-              </div>
+              )}
               <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl p-4 shadow-xl border border-[#e5e7eb]">
                 <div className="flex items-center gap-3">
                   <span className="w-10 h-10 grid place-items-center rounded-full bg-[#1B5E3E]/10 text-[#1B5E3E] font-black text-sm">
