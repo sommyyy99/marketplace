@@ -12,6 +12,7 @@ if (startupWindow.__sommygoStartupTimer !== undefined) {
   window.clearTimeout(startupWindow.__sommygoStartupTimer);
   delete startupWindow.__sommygoStartupTimer;
 }
+window.sessionStorage.removeItem('sommygo-startup-retries');
 
 function showStartupRecovery(error: unknown) {
   console.error('App startup failed:', error);
