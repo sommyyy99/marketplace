@@ -6,6 +6,12 @@ import { supabase } from './integrations/supabase/client';
 import './index.css';
 
 const rootElement = document.getElementById('root');
+const startupWindow = window as Window & { __sommygoStartupTimer?: number };
+
+if (startupWindow.__sommygoStartupTimer !== undefined) {
+  window.clearTimeout(startupWindow.__sommygoStartupTimer);
+  delete startupWindow.__sommygoStartupTimer;
+}
 
 function showStartupRecovery(error: unknown) {
   console.error('App startup failed:', error);
