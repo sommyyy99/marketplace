@@ -426,6 +426,7 @@ export type Database = {
           name: string
           opening_time: string | null
           owner_id: string | null
+          service_category: string | null
           street_address: string | null
         }
         Insert: {
@@ -446,6 +447,7 @@ export type Database = {
           name: string
           opening_time?: string | null
           owner_id?: string | null
+          service_category?: string | null
           street_address?: string | null
         }
         Update: {
@@ -466,6 +468,7 @@ export type Database = {
           name?: string
           opening_time?: string | null
           owner_id?: string | null
+          service_category?: string | null
           street_address?: string | null
         }
         Relationships: [
