@@ -41,27 +41,6 @@
         </section>
       </main>
     </div>
-    <script>
-      (() => {
-        const checkPreview = async () => {
-          window.__sommygoStartupTimer = undefined;
-          if (!document.querySelector('[data-startup-shell]')) return;
-          try {
-            const response = await fetch(`/src/main.tsx?startup-check=${Date.now()}`, {
-              cache: 'no-store',
-            });
-            const retries = Number(sessionStorage.getItem('sommygo-startup-retries') || '0');
-            if (response.ok && retries < 3) {
-              sessionStorage.setItem('sommygo-startup-retries', String(retries + 1));
-              window.location.reload();
-              return;
-            }
-          } catch {}
-          window.__sommygoStartupTimer = window.setTimeout(checkPreview, 2500);
-        };
-        window.__sommygoStartupTimer = window.setTimeout(checkPreview, 2500);
-      })();
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
