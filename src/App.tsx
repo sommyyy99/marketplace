@@ -4,8 +4,10 @@ import { supabase } from './integrations/supabase/client';
 import { AuthModal } from './components/AuthModal';
 import { AddressStep } from './components/AddressStep';
 import { BecomeVendorModal } from './components/BecomeVendorModal';
+import { BecomeRiderModal } from './components/BecomeRiderModal';
 import { CustomerOrders } from './components/CustomerOrders';
 import { VendorDashboard } from './components/VendorDashboard';
+import { RiderDashboard } from './components/RiderDashboard';
 
 interface VendorRow {
   id: string;
@@ -80,13 +82,14 @@ function App() {
   const [authUser, setAuthUser] = useState<SupaUser | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileRole, setProfileRole] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'dashboard' | 'orders'>('home');
+  const [view, setView] = useState<'home' | 'dashboard' | 'orders' | 'riderDashboard'>('home');
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [addressStepOpen, setAddressStepOpen] = useState(false);
   const [becomeVendorOpen, setBecomeVendorOpen] = useState(false);
+  const [becomeRiderOpen, setBecomeRiderOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -414,6 +417,7 @@ function App() {
   const services = ['All', 'Food & Drinks', 'Groceries', 'Pharmacy', 'Fashion', 'Beauty', 'Electronics', 'Services', 'Everything Else'];
 
   const hasVendorDashboardAccess = Boolean(authUser && profileRole === 'vendor');
+  const hasRiderDashboardAccess = Boolean(authUser && profileRole === 'rider');
 
   return (
     <div className="min-h-screen w-full overflow-hidden bg-white">
@@ -583,6 +587,28 @@ function App() {
                 Become a vendor
               </button>
             )}
+
+            {hasRiderDashboardAccess && (
+              <button
+                onClick={() => setView(view === 'riderDashboard' ? 'home' : 'riderDashboard')}
+                className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
+                  view === 'riderDashboard'
+                    ? 'bg-[#1B5E3E] text-white'
+                    : 'text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]'
+                }`}
+              >
+                Deliveries
+              </button>
+            )}
+
+            {authUser && profileRole && profileRole !== 'rider' && (
+              <button
+                onClick={() => setBecomeRiderOpen(true)}
+                className="min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]"
+              >
+                Become a rider
+              </button>
+            )}
           </div>
 
           <div className="relative shrink-0">
@@ -649,9 +675,23 @@ function App() {
           }}
         />
       )}
+      {authUser && (
+        <BecomeRiderModal
+          open={becomeRiderOpen}
+          userId={authUser.id}
+          onClose={() => setBecomeRiderOpen(false)}
+          onSuccess={() => {
+            setBecomeRiderOpen(false);
+            setProfileRole('rider');
+            setView('riderDashboard');
+          }}
+        />
+      )}
 
       {view === 'dashboard' && authUser && hasVendorDashboardAccess ? (
         <VendorDashboard userId={authUser.id} />
+      ) : view === 'riderDashboard' && authUser && hasRiderDashboardAccess ? (
+        <RiderDashboard userId={authUser.id} />
       ) : view === 'orders' && authUser ? (
         <CustomerOrders userId={authUser.id} />
       ) : (
