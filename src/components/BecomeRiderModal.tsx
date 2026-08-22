@@ -23,11 +23,16 @@ export function BecomeRiderModal({ open, userId, onClose, onSuccess }: BecomeRid
     setError(null);
     setSaving(true);
     try {
-      const { error: riderErr } = await supabase.from('riders').insert({
-        profile_id: userId,
-        vehicle_type: vehicleType,
-        is_available: true,
-      });
+      const { error: riderErr } = await supabase
+        .from('riders')
+        .upsert(
+          {
+            profile_id: userId,
+            vehicle_type: vehicleType,
+            is_available: true,
+          },
+          { onConflict: 'profile_id' }
+        );
       if (riderErr) throw riderErr;
 
       const { error: profileErr } = await supabase
