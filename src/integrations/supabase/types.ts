@@ -486,7 +486,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      current_rider_id: { Args: never; Returns: string }
+      rider_is_assigned_to_my_order: {
+        Args: { rider_row_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
