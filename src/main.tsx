@@ -60,6 +60,7 @@ try {
       </ErrorBoundary>
     </StrictMode>,
   );
+  window.dispatchEvent(new Event('sommygo:mounted'));
 } catch (error) {
   showStartupRecovery(error);
 }
