@@ -1,27 +1,31 @@
-# Fix the stuck reconnect screen
+# Make the reconnect screen recover automatically
 
-## What I verified
+## Verified cause
 
-- The screenshot is the static startup shell from `index.html`, not the React application.
-- `main.tsx` removes that shell immediately when its module executes, so the shell remaining means the entry module did not successfully start.
-- No React runtime error was captured, and the current HTML has only a direct module script with no failure handler or controlled retry.
+- At 11:25 UTC, an environment change restarted Vite and canceled the in-flight build.
+- During that window, both `/` and `/src/main.tsx` refused connections, which left the browser showing the static Sommygo startup shell.
+- Vite has since restarted successfully, but the current shell only offers a full manual reload; it cannot retry loading React after the server returns.
 
 ## Plan
 
-1. **Replace the fragile direct startup handoff**
-   - Load the React entry through a small inline module bootstrap that can detect a failed module import.
-   - Keep the existing shell visible only while the first load is genuinely in progress.
+1. **Replace the direct entry script with a controlled bootstrap**
+   - Keep the Sommygo shell available immediately while the preview reconnects.
+   - Import the React entry from a small inline module so startup failure can be detected before React executes.
 
-2. **Recover without reload loops**
-   - Retry the module import on a short, capped schedule and when the browser comes back online or the tab becomes visible.
-   - Mount React as soon as Vite is reachable again, without repeatedly reloading the whole preview.
-   - After retries are exhausted, change the shell to a clear failure state with a manual retry button instead of animating forever.
+2. **Retry the entry module without a reload loop**
+   - Retry on a short, capped backoff and when the browser comes online or the tab becomes visible.
+   - Import a fresh entry URL after Vite recovers, then let React replace the shell normally.
+   - Stop all retry listeners as soon as the app mounts.
 
-3. **Keep React recovery separate**
-   - Preserve the existing error boundary and signed-out recovery for errors that happen after React starts.
-   - Ensure startup listeners do not replace an already-rendered app.
+3. **Provide a real exhausted state**
+   - After the retry cap, stop the moving progress indicator and explain that reconnection failed.
+   - Keep one manual retry button that restarts the controlled import attempt rather than repeatedly reloading the whole page.
 
-4. **Verify the exact paths**
-   - Confirm a normal load replaces the shell with Sommygo.
-   - Simulate an unavailable entry module, restore it, and confirm the app mounts automatically.
-   - Confirm retries stop at the cap and do not create a reload loop.
+4. **Verify the restart path**
+   - Confirm normal startup renders Sommygo immediately.
+   - Simulate an unavailable entry module, restore it, and confirm the existing page mounts React automatically.
+   - Confirm failed retries stop at the cap with no white screen and no reload loop.
+
+## Scope
+
+Frontend startup only. No authentication, database, or application-feature changes.
