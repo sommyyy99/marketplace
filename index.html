@@ -26,6 +26,7 @@
       #startup-shell .startup-track { height: 4px; overflow: hidden; border-radius: 999px; background: #dce8df; }
       #startup-shell .startup-progress { width: 42%; height: 100%; border-radius: inherit; background: #1b5e3e; animation: startup-move 1.2s ease-in-out infinite alternate; }
       #startup-shell button { min-height: 44px; margin-top: 22px; padding: 0 22px; border: 1px solid #1b5e3e; border-radius: 999px; background: transparent; color: #1b5e3e; font: inherit; font-weight: 700; cursor: pointer; }
+      #startup-shell[data-state="failed"] .startup-progress { width: 100%; animation: none; background: #b54708; }
       @keyframes startup-move { from { transform: translateX(0); } to { transform: translateX(138%); } }
       @media (prefers-reduced-motion: reduce) { #startup-shell .startup-progress { animation: none; width: 100%; } }
     </style>
@@ -35,12 +36,91 @@
       <main id="startup-shell" data-startup-shell>
         <section aria-live="polite">
           <strong>Sommygo</strong>
-          <p>Reconnecting to your preview…</p>
+          <p data-startup-message>Reconnecting to your preview…</p>
           <div class="startup-track" aria-hidden="true"><div class="startup-progress"></div></div>
-          <button type="button" onclick="window.location.reload()">Reload preview</button>
+          <button type="button" data-startup-retry>Retry connection</button>
         </section>
       </main>
     </div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module">
+      const shell = document.querySelector('[data-startup-shell]');
+      const message = shell?.querySelector('[data-startup-message]');
+      const retryButton = shell?.querySelector('[data-startup-retry]');
+      const retryDelays = [0, 750, 1500, 3000, 5000];
+      const entryLoaders = [
+        () => import('/src/main.tsx?startup=0'),
+        () => import('/src/main.tsx?startup=1'),
+        () => import('/src/main.tsx?startup=2'),
+        () => import('/src/main.tsx?startup=3'),
+        () => import('/src/main.tsx?startup=4'),
+      ];
+
+      let attempt = 0;
+      let timer;
+      let loading = false;
+      let finished = false;
+
+      const cleanup = () => {
+        finished = true;
+        window.clearTimeout(timer);
+        window.removeEventListener('online', resumeNow);
+        document.removeEventListener('visibilitychange', resumeWhenVisible);
+      };
+
+      const showFailure = () => {
+        loading = false;
+        shell?.setAttribute('data-state', 'failed');
+        if (message) message.textContent = 'The preview could not reconnect. Try again when the server is available.';
+        if (retryButton instanceof HTMLButtonElement) retryButton.disabled = false;
+      };
+
+      const loadEntry = async () => {
+        if (finished || loading) return;
+        if (attempt >= entryLoaders.length) {
+          showFailure();
+          return;
+        }
+
+        loading = true;
+        const currentAttempt = attempt;
+        attempt += 1;
+        try {
+          await entryLoaders[currentAttempt]();
+          cleanup();
+        } catch (error) {
+          console.warn(`App entry load attempt ${attempt} failed.`, error);
+          loading = false;
+          if (attempt >= entryLoaders.length) {
+            showFailure();
+            return;
+          }
+          timer = window.setTimeout(loadEntry, retryDelays[attempt]);
+        }
+      };
+
+      const resumeNow = () => {
+        if (finished || loading || attempt >= entryLoaders.length) return;
+        window.clearTimeout(timer);
+        loadEntry();
+      };
+
+      const resumeWhenVisible = () => {
+        if (document.visibilityState === 'visible') resumeNow();
+      };
+
+      retryButton?.addEventListener('click', () => {
+        attempt = 0;
+        shell?.removeAttribute('data-state');
+        if (message) message.textContent = 'Reconnecting to your preview…';
+        if (retryButton instanceof HTMLButtonElement) retryButton.disabled = true;
+        window.clearTimeout(timer);
+        loading = false;
+        loadEntry();
+      });
+      window.addEventListener('online', resumeNow);
+      document.addEventListener('visibilitychange', resumeWhenVisible);
+      window.addEventListener('sommygo:mounted', cleanup, { once: true });
+      loadEntry();
+    </script>
   </body>
 </html>
