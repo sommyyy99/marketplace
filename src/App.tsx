@@ -140,8 +140,8 @@ function App() {
             ? authUser.user_metadata.full_name.trim()
             : '';
           setProfileName(fullName || metadataName || authUser.email || null);
-          setProfileRole(role === 'vendor' || role === 'customer' ? role : null);
-          if (role !== 'vendor') setView('home');
+          setProfileRole(role === 'vendor' || role === 'customer' || role === 'rider' ? role : null);
+          if (role !== 'vendor' && role !== 'rider') setView('home');
         }
       } catch (error) {
         console.error('Failed to load the account profile:', error);
