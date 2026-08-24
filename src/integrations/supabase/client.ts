@@ -3,8 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// Keep the public project configuration available when the preview build does
+// not inject Vite environment variables. Environment values still take
+// precedence everywhere they are available.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://iulpiuoukmibwvbrpmxi.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1bHBpdW91a21pYnd2YnJwbXhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5ODU1MzIsImV4cCI6MjA5ODU2MTUzMn0.IsWWzWvQnWBeapDyoU11kS6cVN0C-ZYywmyUK5z836I';
 
 
 function isNewSupabaseApiKey(value: string): boolean {
