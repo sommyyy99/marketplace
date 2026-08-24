@@ -61,21 +61,6 @@ export type Database = {
           },
         ]
       }
-      marketplace: {
-        Row: {
-          created_at: string
-          id: number
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-        }
-        Update: {
-          created_at?: string
-          id?: number
-        }
-        Relationships: []
-      }
       menu_categories: {
         Row: {
           id: string
@@ -401,7 +386,7 @@ export type Database = {
           {
             foreignKeyName: "riders_profile_id_fkey"
             columns: ["profile_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -487,6 +472,7 @@ export type Database = {
     }
     Functions: {
       current_rider_id: { Args: never; Returns: string }
+      is_admin: { Args: never; Returns: boolean }
       rider_is_assigned_to_my_order: {
         Args: { rider_row_id: string }
         Returns: boolean
