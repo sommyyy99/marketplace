@@ -42,7 +42,9 @@ export function BecomeVendorModal({ open, userId, onClose, onSuccess }: BecomeVe
         category: category.trim() || null,
         street_address: trimmedStreet,
         description: description.trim() || null,
-        is_active: true,
+        // New vendors are pending review - an admin must approve them
+        // (is_active: true) before they appear in the public marketplace.
+        is_active: false,
         is_open: true,
       });
       if (vendorErr) throw vendorErr;
@@ -77,7 +79,8 @@ export function BecomeVendorModal({ open, userId, onClose, onSuccess }: BecomeVe
 
         <h2 className="text-2xl font-bold text-[#111827] mb-1">Become a vendor</h2>
         <p className="text-sm text-[#667085] mb-6">
-          Set up your storefront to start listing menu items and receiving orders.
+          Set up your storefront and start adding menu items. An admin will review and approve
+          your account before it appears in the marketplace.
         </p>
 
         <form onSubmit={handleSubmit} className="grid gap-3">
