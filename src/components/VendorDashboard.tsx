@@ -30,6 +30,12 @@ interface MenuItemRow {
   description: string | null;
   price: number;
   is_available: boolean | null;
+  category_id: string | null;
+}
+
+interface CategoryRow {
+  id: string;
+  name: string;
 }
 
 interface Props {
@@ -50,7 +56,54 @@ export function VendorDashboard({ userId }: Props) {
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   const [newItemDescription, setNewItemDescription] = useState('');
+  const [newItemCategoryId, setNewItemCategoryId] = useState('');
   const [addingItem, setAddingItem] = useState(false);
+
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
+
+  const loadCategories = useCallback(async (vId: string) => {
+    const { data, error: err } = await supabase
+      .from('menu_categories')
+      .select('id, name')
+      .eq('vendor_id', vId)
+      .order('sort_order', { ascending: true });
+    if (!err) setCategories((data as CategoryRow[]) ?? []);
+  }, []);
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vendorId) return;
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    setAddingCategory(true);
+    setMenuError(null);
+    try {
+      const { error: insertErr } = await supabase
+        .from('menu_categories')
+        .insert({ vendor_id: vendorId, name: trimmed, sort_order: categories.length });
+      if (insertErr) throw insertErr;
+      setNewCategoryName('');
+      await loadCategories(vendorId);
+    } catch (err: any) {
+      setMenuError(err.message || 'Could not add this category. Please try again.');
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+
+  const assignCategory = async (item: MenuItemRow, categoryId: string) => {
+    if (!vendorId) return;
+    setMenuBusyId(item.id);
+    const { error: err } = await supabase
+      .from('menu_items')
+      .update({ category_id: categoryId || null })
+      .eq('id', item.id);
+    if (err) setMenuError(err.message);
+    else await loadMenuItems(vendorId);
+    setMenuBusyId(null);
+  };
 
   const loadOrders = useCallback(async (vId: string) => {
     const { data, error: err } = await supabase
@@ -71,7 +124,7 @@ export function VendorDashboard({ userId }: Props) {
   const loadMenuItems = useCallback(async (vId: string) => {
     const { data, error: err } = await supabase
       .from('menu_items')
-      .select('id, name, description, price, is_available')
+      .select('id, name, description, price, is_available, category_id')
       .eq('vendor_id', vId)
       .order('name', { ascending: true });
     if (err) {
@@ -99,13 +152,13 @@ export function VendorDashboard({ userId }: Props) {
         return;
       }
       setVendorId(vendor.id);
-      await Promise.all([loadOrders(vendor.id), loadMenuItems(vendor.id)]);
+      await Promise.all([loadOrders(vendor.id), loadMenuItems(vendor.id), loadCategories(vendor.id)]);
       if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId, loadOrders, loadMenuItems]);
+  }, [userId, loadOrders, loadMenuItems, loadCategories]);
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,6 +179,7 @@ export function VendorDashboard({ userId }: Props) {
         name: trimmedName,
         price: priceValue,
         description: newItemDescription.trim() || null,
+        category_id: newItemCategoryId || null,
         is_available: true,
       });
       if (insertErr) throw insertErr;
@@ -229,6 +283,45 @@ export function VendorDashboard({ userId }: Props) {
       {!loading && !error && tab === 'menu' && (
         <div>
           <form
+            onSubmit={handleAddCategory}
+            className="bg-white border border-[#e5e7eb] rounded-2xl p-4 shadow-sm mb-4 flex flex-wrap items-center gap-3"
+          >
+            <span className="text-sm font-bold text-[#111827]">Categories</span>
+            {categories.length === 0 ? (
+              <span className="text-xs text-[#667085]">
+                None yet — add one so customers can filter your items.
+              </span>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {categories.map((c) => (
+                  <span
+                    key={c.id}
+                    className="px-3 py-1 rounded-full bg-[#f7f8fa] text-[#111827] text-xs font-bold"
+                  >
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2 ml-auto">
+              <input
+                type="text"
+                placeholder="New category name"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className="min-h-[36px] rounded-full border border-[#e5e7eb] px-3 text-sm outline-none focus:border-[#1B5E3E]"
+              />
+              <button
+                type="submit"
+                disabled={addingCategory || !newCategoryName.trim()}
+                className="min-h-[36px] rounded-full bg-[#f7f8fa] text-[#1B5E3E] font-bold px-4 text-sm hover:bg-[#e5e7eb] disabled:opacity-60"
+              >
+                {addingCategory ? 'Adding…' : '+ Add'}
+              </button>
+            </div>
+          </form>
+
+          <form
             onSubmit={handleAddItem}
             className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm mb-6 grid gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-start"
           >
@@ -259,6 +352,18 @@ export function VendorDashboard({ userId }: Props) {
               onChange={(e) => setNewItemDescription(e.target.value)}
               className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E] sm:col-span-2"
             />
+            <select
+              value={newItemCategoryId}
+              onChange={(e) => setNewItemCategoryId(e.target.value)}
+              className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E] bg-white sm:col-span-1"
+            >
+              <option value="">No category</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
             <button
               type="submit"
               disabled={addingItem}
@@ -285,6 +390,19 @@ export function VendorDashboard({ userId }: Props) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={item.category_id ?? ''}
+                      disabled={menuBusyId === item.id}
+                      onChange={(e) => assignCategory(item, e.target.value)}
+                      className="rounded-full border border-[#e5e7eb] px-3 py-1.5 text-xs bg-white"
+                    >
+                      <option value="">No category</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type="number"
                       min="1"
