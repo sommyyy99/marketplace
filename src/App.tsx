@@ -8,6 +8,7 @@ import { BecomeRiderModal } from './components/BecomeRiderModal';
 import { CustomerOrders } from './components/CustomerOrders';
 import { VendorDashboard } from './components/VendorDashboard';
 import { RiderDashboard } from './components/RiderDashboard';
+import { AdminDashboard } from './components/AdminDashboard';
 
 interface VendorRow {
   id: string;
@@ -27,6 +28,7 @@ interface Product {
   description: string;
   price: number;
   category: string;
+  categoryLabel: string | null;
   image: string;
 }
 
@@ -39,6 +41,7 @@ interface MenuItemRow {
   image_url: string | null;
   vendor_id: string | null;
   vendors: { name: string; service_category: string | null } | null;
+  menu_categories: { name: string } | null;
 }
 
 import wrapsBurgers from './assets/images/image copy copy.png';
@@ -56,7 +59,6 @@ import {
   User,
 } from 'lucide-react';
 import {
-  categories,
   deliveryFee,
   serviceFee,
 } from './data/products';
@@ -82,7 +84,7 @@ function App() {
   const [authUser, setAuthUser] = useState<SupaUser | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileRole, setProfileRole] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'dashboard' | 'orders' | 'riderDashboard'>('home');
+  const [view, setView] = useState<'home' | 'dashboard' | 'orders' | 'riderDashboard' | 'adminDashboard'>('home');
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -140,8 +142,10 @@ function App() {
             ? authUser.user_metadata.full_name.trim()
             : '';
           setProfileName(fullName || metadataName || authUser.email || null);
-          setProfileRole(role === 'vendor' || role === 'customer' || role === 'rider' ? role : null);
-          if (role !== 'vendor' && role !== 'rider') setView('home');
+          setProfileRole(
+            role === 'vendor' || role === 'customer' || role === 'rider' || role === 'admin' ? role : null
+          );
+          if (role !== 'vendor' && role !== 'rider' && role !== 'admin') setView('home');
         }
       } catch (error) {
         console.error('Failed to load the account profile:', error);
@@ -196,7 +200,7 @@ function App() {
     (async () => {
       const { data, error } = await supabase
         .from('menu_items')
-        .select('id, name, description, price, category_id, image_url, vendor_id, vendors!menu_items_vendor_id_fkey(name, service_category)')
+        .select('id, name, description, price, category_id, image_url, vendor_id, vendors!menu_items_vendor_id_fkey(name, service_category), menu_categories(name)')
         .eq('is_available', true)
         .order('name');
       if (cancelled) return;
@@ -215,6 +219,7 @@ function App() {
             description: item.description ?? '',
             price: Number(item.price),
             category: item.category_id ?? 'all',
+            categoryLabel: item.menu_categories?.name ?? null,
             image: item.image_url ?? wrapsBurgers,
           })),
         );
@@ -226,16 +231,33 @@ function App() {
     };
   }, []);
 
+  const productsInService = useMemo(() => {
+    if (activeService === 'All') return products;
+    return products.filter((p) => p.serviceCategory === activeService);
+  }, [activeService, products]);
+
+  // Built from whatever categories are actually present on real menu items
+  // (not a hardcoded list), so a category pill always matches real products.
+  const availableCategories = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const p of productsInService) {
+      if (p.category !== 'all' && p.categoryLabel) {
+        seen.set(p.category, p.categoryLabel);
+      }
+    }
+    return [{ id: 'all', label: 'All' }, ...Array.from(seen, ([id, label]) => ({ id, label }))];
+  }, [productsInService]);
+
+  useEffect(() => {
+    if (activeCategory !== 'all' && !availableCategories.some((c) => c.id === activeCategory)) {
+      setActiveCategory('all');
+    }
+  }, [availableCategories, activeCategory]);
+
   const filteredProducts = useMemo(() => {
-    let list = products;
-    if (activeService !== 'All') {
-      list = list.filter((p) => p.serviceCategory === activeService);
-    }
-    if (activeCategory !== 'all') {
-      list = list.filter((p) => p.category === activeCategory);
-    }
-    return list;
-  }, [activeCategory, activeService, products]);
+    if (activeCategory === 'all') return productsInService;
+    return productsInService.filter((p) => p.category === activeCategory);
+  }, [activeCategory, productsInService]);
 
   const filteredVendors = useMemo(() => {
     if (activeService === 'All') return vendors;
@@ -277,39 +299,47 @@ function App() {
     });
   }, []);
 
-  const createOrder = useCallback(
-    async (vendorId: string, subtotal: number, orderTotal: number, reference: string, addressId: string) => {
-      if (!authUser) throw new Error('Please sign in again before placing your order.');
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          customer_id: authUser.id,
-          vendor_id: vendorId,
-          subtotal,
-          delivery_fee: deliveryFee,
-          total: orderTotal,
-          status: 'placed',
-          payment_status: 'paid',
-          payment_reference: reference,
-          delivery_address_id: addressId,
-        })
-        .select('id')
-        .single();
-      if (orderErr) throw orderErr;
+  // Calls the create-order edge function, which looks up real menu-item
+  // prices server-side and creates a "pending" order - the client can never
+  // set its own prices or mark an order as paid.
+  const createPendingOrder = useCallback(
+    async (vendorId: string, addressId: string) => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('Please sign in again before placing your order.');
 
-      const { error: itemsErr } = await supabase.from('order_items').insert(
-        basket.map((it) => ({
-          order_id: order.id,
-          menu_item_id: it.menuItemId,
-          name: it.name,
-          price: it.price,
-          quantity: 1,
-        })),
-      );
-      if (itemsErr) throw itemsErr;
+      const { data, error } = await supabase.functions.invoke('create-order', {
+        body: {
+          vendorId,
+          addressId,
+          items: basket.map((it) => ({ menuItemId: it.menuItemId, quantity: 1 })),
+        },
+      });
+      if (error) {
+        const message = (data as any)?.error || error.message || 'Could not create the order.';
+        throw new Error(message);
+      }
+      return data as {
+        orderId: string;
+        total: number;
+        amountKobo: number;
+        email: string;
+      };
     },
-    [authUser, basket],
+    [basket],
   );
+
+  // Calls the verify-payment edge function, which confirms the transaction
+  // with Paystack's secret key server-side before the order is marked paid.
+  const verifyPayment = useCallback(async (orderId: string, reference: string) => {
+    const { data, error } = await supabase.functions.invoke('verify-payment', {
+      body: { orderId, reference },
+    });
+    if (error) {
+      const message = (data as any)?.error || error.message || 'Payment could not be verified.';
+      throw new Error(message);
+    }
+  }, []);
 
   // Kicks off the Paystack popup once a delivery address has been chosen/saved.
   const proceedToPayment = useCallback(
@@ -322,32 +352,31 @@ function App() {
         return;
       }
 
-      const email = authUser.email;
-      if (!email) {
-        setCheckoutMessage({ kind: 'error', text: 'Your account has no email for payment.' });
-        return;
-      }
-
       setCheckoutLoading(true);
       try {
-        const subtotal = basket.reduce((s, it) => s + it.price, 0);
-        const orderTotal = subtotal + deliveryFee + serviceFee;
+        // Create the order server-side first so the total is trustworthy.
+        const { orderId, amountKobo, email } = await createPendingOrder(vendorId, addressId);
+        if (!email) {
+          setCheckoutMessage({ kind: 'error', text: 'Your account has no email for payment.' });
+          setCheckoutLoading(false);
+          return;
+        }
 
         const PaystackPop = await loadPaystack();
         const handler = PaystackPop.setup({
           key: 'pk_test_772559f6395e880ab255aa37da7ad977d918cb09',
           email,
-          amount: Math.round(orderTotal * 100),
+          amount: amountKobo,
           currency: 'NGN',
           callback: (response: { reference: string }) => {
             (async () => {
               try {
-                await createOrder(vendorId, subtotal, orderTotal, response.reference, addressId);
+                await verifyPayment(orderId, response.reference);
                 setBasket([]);
                 setCheckoutMessage({ kind: 'success', text: `Payment successful! Order placed (ref ${response.reference}).` });
               } catch (err: any) {
-                console.error('Order creation failed', err);
-                setCheckoutMessage({ kind: 'error', text: err.message || 'Payment succeeded but order failed to save. Contact support.' });
+                console.error('Payment verification failed', err);
+                setCheckoutMessage({ kind: 'error', text: err.message || 'Payment could not be verified. Contact support with your reference.' });
               } finally {
                 setCheckoutLoading(false);
               }
@@ -365,7 +394,7 @@ function App() {
         setCheckoutLoading(false);
       }
     },
-    [authUser, basket, loadPaystack, createOrder],
+    [authUser, basket, loadPaystack, createPendingOrder, verifyPayment],
   );
 
   // Validates the basket, then opens the delivery-address step before payment.
@@ -418,6 +447,7 @@ function App() {
 
   const hasVendorDashboardAccess = Boolean(authUser && profileRole === 'vendor');
   const hasRiderDashboardAccess = Boolean(authUser && profileRole === 'rider');
+  const hasAdminDashboardAccess = Boolean(authUser && profileRole === 'admin');
 
   return (
     <div className="min-h-screen w-full overflow-hidden bg-white">
@@ -609,6 +639,19 @@ function App() {
                 Become a rider
               </button>
             )}
+
+            {hasAdminDashboardAccess && (
+              <button
+                onClick={() => setView(view === 'adminDashboard' ? 'home' : 'adminDashboard')}
+                className={`min-h-[40px] flex items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors ${
+                  view === 'adminDashboard'
+                    ? 'bg-[#1B5E3E] text-white'
+                    : 'text-[#667085] hover:bg-[#f7f8fa] hover:text-[#111827]'
+                }`}
+              >
+                Admin
+              </button>
+            )}
           </div>
 
           <div className="relative shrink-0">
@@ -692,6 +735,8 @@ function App() {
         <VendorDashboard userId={authUser.id} />
       ) : view === 'riderDashboard' && authUser && hasRiderDashboardAccess ? (
         <RiderDashboard userId={authUser.id} />
+      ) : view === 'adminDashboard' && authUser && hasAdminDashboardAccess ? (
+        <AdminDashboard />
       ) : view === 'orders' && authUser ? (
         <CustomerOrders userId={authUser.id} />
       ) : (
@@ -893,22 +938,24 @@ function App() {
           </div>
         </section>
 
-        {/* Category Row */}
-        <section className="max-w-full flex gap-2 overflow-x-auto pb-3 scrollbar-hide mb-6">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`whitespace-nowrap border rounded-full font-bold px-5 py-2.5 transition-colors text-sm ${
-                activeCategory === cat.id
-                  ? 'bg-[#1B5E3E] text-white border-[#1B5E3E]'
-                  : 'bg-white text-[#667085] border-[#e5e7eb] hover:bg-[#1B5E3E] hover:text-white hover:border-[#1B5E3E]'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </section>
+        {/* Category Row - only shown once real menu items have categories */}
+        {availableCategories.length > 1 && (
+          <section className="max-w-full flex gap-2 overflow-x-auto pb-3 scrollbar-hide mb-6">
+            {availableCategories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`whitespace-nowrap border rounded-full font-bold px-5 py-2.5 transition-colors text-sm ${
+                  activeCategory === cat.id
+                    ? 'bg-[#1B5E3E] text-white border-[#1B5E3E]'
+                    : 'bg-white text-[#667085] border-[#e5e7eb] hover:bg-[#1B5E3E] hover:text-white hover:border-[#1B5E3E]'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </section>
+        )}
 
         {/* Content Grid: Products + Basket */}
         <section className="grid grid-cols-[1fr_minmax(300px,340px)] gap-8 items-start max-[900px]:grid-cols-1">
