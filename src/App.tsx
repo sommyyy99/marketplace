@@ -77,6 +77,9 @@ function App() {
   const [activeNav, setActiveNav] = useState('Market');
   const [activeService, setActiveService] = useState('All');
   const [cityOpen, setCityOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [heroAddress, setHeroAddress] = useState('');
   const [vendors, setVendors] = useState<VendorRow[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -255,9 +258,15 @@ function App() {
   }, [availableCategories, activeCategory]);
 
   const filteredProducts = useMemo(() => {
-    if (activeCategory === 'all') return productsInService;
-    return productsInService.filter((p) => p.category === activeCategory);
-  }, [activeCategory, productsInService]);
+    let list = activeCategory === 'all' ? productsInService : productsInService.filter((p) => p.category === activeCategory);
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (p) => p.name.toLowerCase().includes(q) || p.vendor.toLowerCase().includes(q) || p.description.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [activeCategory, productsInService, searchQuery]);
 
   const filteredVendors = useMemo(() => {
     if (activeService === 'All') return vendors;
@@ -488,10 +497,23 @@ function App() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
-            <button className="w-10 h-10 grid place-items-center rounded-full bg-white border border-[#e5e7eb] shadow-sm hover:shadow-md transition-shadow">
+            <button
+              onClick={() => document.getElementById('basket-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="relative w-10 h-10 grid place-items-center rounded-full bg-white border border-[#e5e7eb] shadow-sm hover:shadow-md transition-shadow"
+              aria-label="View basket"
+            >
               <ShoppingCart className="w-5 h-5 text-[#1B5E3E]" />
+              {basket.length > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center">
+                  {basket.length}
+                </span>
+              )}
             </button>
-            <button className="w-10 h-10 grid place-items-center rounded-full bg-[#1B5E3E] text-white shadow-lg hover:bg-[#144d32] transition-colors">
+            <button
+              onClick={() => setAccountMenuOpen((v) => !v)}
+              className="w-10 h-10 grid place-items-center rounded-full bg-[#1B5E3E] text-white shadow-lg hover:bg-[#144d32] transition-colors"
+              aria-label="Open menu"
+            >
               <Menu className="w-5 h-5" />
             </button>
           </div>
@@ -500,17 +522,46 @@ function App() {
         {/* Address Bar */}
         <div className="max-w-[800px] mx-auto mt-6">
           <div className="flex items-center gap-3 bg-white rounded-full px-3 py-3 shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-[#e5e7eb]">
-            <button className="flex items-center gap-2 bg-[#f7f8fa] border border-[#e5e7eb] text-[#1B5E3E] font-bold px-5 py-2 rounded-full hover:bg-[#1B5E3E] hover:text-white hover:border-[#1B5E3E] transition-colors whitespace-nowrap text-sm flex-shrink-0">
+            <button
+              onClick={() => {
+                setSearchOpen((v) => !v);
+                setTimeout(() => document.getElementById('hero-search-input')?.focus(), 0);
+              }}
+              className="flex items-center gap-2 bg-[#f7f8fa] border border-[#e5e7eb] text-[#1B5E3E] font-bold px-5 py-2 rounded-full hover:bg-[#1B5E3E] hover:text-white hover:border-[#1B5E3E] transition-colors whitespace-nowrap text-sm flex-shrink-0"
+            >
               <Search className="w-4 h-4" />
               Search
             </button>
-            <MapPin className="w-5 h-5 text-[#1B5E3E] flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Enter a delivery address"
-              className="flex-1 min-w-0 border-0 outline-0 text-[#111827] placeholder:text-[#9ca3af] text-base bg-transparent"
-            />
-            <button className="bg-[#1B5E3E] text-white font-bold px-6 py-2.5 rounded-full hover:bg-[#144d32] transition-colors whitespace-nowrap text-sm flex-shrink-0">
+            {searchOpen ? (
+              <input
+                id="hero-search-input"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    document.getElementById('shop-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+                placeholder="Search items or vendors"
+                className="flex-1 min-w-0 border-0 outline-0 text-[#111827] placeholder:text-[#9ca3af] text-base bg-transparent"
+              />
+            ) : (
+              <>
+                <MapPin className="w-5 h-5 text-[#1B5E3E] flex-shrink-0" />
+                <input
+                  type="text"
+                  value={heroAddress}
+                  onChange={(e) => setHeroAddress(e.target.value)}
+                  placeholder="Enter a delivery address"
+                  className="flex-1 min-w-0 border-0 outline-0 text-[#111827] placeholder:text-[#9ca3af] text-base bg-transparent"
+                />
+              </>
+            )}
+            <button
+              onClick={() => document.getElementById('shop-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="bg-[#1B5E3E] text-white font-bold px-6 py-2.5 rounded-full hover:bg-[#144d32] transition-colors whitespace-nowrap text-sm flex-shrink-0"
+            >
               Order now
             </button>
           </div>
@@ -771,7 +822,10 @@ function App() {
                 ))}
               </div>
 
-              <button className="mt-6 min-h-[50px] rounded-full bg-[#1B5E3E] text-white font-bold px-8 shadow-[0_10px_30px_rgba(27,94,62,0.3)] hover:bg-[#144d32] transition-colors">
+              <button
+                onClick={() => document.getElementById('shop-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="mt-6 min-h-[50px] rounded-full bg-[#1B5E3E] text-white font-bold px-8 shadow-[0_10px_30px_rgba(27,94,62,0.3)] hover:bg-[#144d32] transition-colors"
+              >
                 Start shopping
               </button>
             </div>
@@ -861,7 +915,10 @@ function App() {
                 Explore deals, shop drops, and delivery moments
               </h2>
             </div>
-            <button className="border-0 bg-transparent text-[#1B5E3E] font-black whitespace-nowrap hover:underline text-sm">
+            <button
+              onClick={() => document.getElementById('shop-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="border-0 bg-transparent text-[#1B5E3E] font-black whitespace-nowrap hover:underline text-sm"
+            >
               See details
             </button>
           </div>
@@ -872,21 +929,21 @@ function App() {
                 tag: 'Now open',
                 title: 'Fresh foodstuff drop',
                 desc: 'Local sellers just added rice, beans, tomatoes, vegetables, and cooking essentials.',
-                meta: '12 vendors active',
+                meta: `${vendors.filter((v) => v.service_category === 'Groceries' || v.service_category === 'Food & Drinks').length} vendors active`,
                 featured: true,
               },
               {
                 tag: 'Fast lane',
                 title: 'Pharmacy essentials',
                 desc: 'Order wellness basics and household health items from trusted nearby shops.',
-                meta: '25-40 min delivery',
+                meta: `${vendors.filter((v) => v.service_category === 'Pharmacy').length} pharmacy vendors`,
                 featured: false,
               },
               {
                 tag: 'Community picks',
                 title: 'Shops to explore',
                 desc: 'Browse neighborhood stores, saved favorites, ratings, and item details in one place.',
-                meta: 'Updated today',
+                meta: `${vendors.length} vendor${vendors.length === 1 ? '' : 's'} on Sommygo`,
                 featured: false,
               },
             ].map((event, i) => (
@@ -925,15 +982,21 @@ function App() {
             </div>
           </div>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-            {['Mama Tola Foods', 'Green Basket', 'QuickMeds', 'Daily Needs', 'Bukateria Hub', 'Farm Gate'].map(
-              (store) => (
-                <span
-                  key={store}
+            {vendors.length === 0 ? (
+              <p className="text-sm text-[#667085]">No vendors have joined yet — check back soon.</p>
+            ) : (
+              vendors.slice(0, 8).map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => {
+                    setSearchQuery(v.name);
+                    document.getElementById('shop-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
                   className="min-w-[140px] min-h-[70px] grid place-items-center border border-[#e5e7eb] rounded-xl bg-[#f7f8fa] text-[#111827] font-bold text-center p-3 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-[#1B5E3E]/30 cursor-pointer"
                 >
-                  {store}
-                </span>
-              )
+                  {v.name}
+                </button>
+              ))
             )}
           </div>
         </section>
@@ -958,7 +1021,7 @@ function App() {
         )}
 
         {/* Content Grid: Products + Basket */}
-        <section className="grid grid-cols-[1fr_minmax(300px,340px)] gap-8 items-start max-[900px]:grid-cols-1">
+        <section id="shop-section" className="grid grid-cols-[1fr_minmax(300px,340px)] gap-8 items-start max-[900px]:grid-cols-1">
           {/* Products */}
           <div>
             <div className="flex justify-between gap-4 items-end mb-5">
@@ -968,7 +1031,14 @@ function App() {
                 </p>
                 <h2 className="text-2xl font-bold text-[#111827]">Available items</h2>
               </div>
-              <button className="border-0 bg-transparent text-[#1B5E3E] font-black whitespace-nowrap hover:underline text-sm">
+              <button
+                onClick={() => {
+                  setActiveCategory('all');
+                  setActiveService('All');
+                  setSearchQuery('');
+                }}
+                className="border-0 bg-transparent text-[#1B5E3E] font-black whitespace-nowrap hover:underline text-sm"
+              >
                 View all
               </button>
             </div>
@@ -1016,7 +1086,7 @@ function App() {
           </div>
 
           {/* Order Panel */}
-          <aside className="sticky top-20 border border-[#e5e7eb] rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.06)] max-[900px]:static">
+          <aside id="basket-panel" className="sticky top-20 border border-[#e5e7eb] rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(0,0,0,0.06)] max-[900px]:static">
             <div className="flex justify-between gap-4 items-start mb-5 mt-0">
               <div>
                 <p className="text-[#1B5E3E] text-sm font-black uppercase tracking-wider mb-1.5">
