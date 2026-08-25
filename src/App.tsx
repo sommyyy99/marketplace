@@ -87,7 +87,7 @@ function App() {
   const [authUser, setAuthUser] = useState<SupaUser | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileRole, setProfileRole] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'dashboard' | 'orders' | 'riderDashboard' | 'adminDashboard'>('home');
+  const [view, setView] = useState<'home' | 'dashboard' | 'orders' | 'riderDashboard' | 'adminDashboard' | 'vendors'>('home');
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -615,7 +615,14 @@ function App() {
         <div className="max-w-[1200px] mx-auto flex gap-6 items-center">
           <div className="flex gap-6 items-center overflow-x-auto scrollbar-hide flex-1 min-w-0">
             {navItems.map((item) => {
-              const isActive = item.label === 'Market' ? view === 'home' : item.label === 'Orders' ? view === 'orders' : activeNav === item.label;
+              const isActive =
+                item.label === 'Market'
+                  ? view === 'home'
+                  : item.label === 'Orders'
+                    ? view === 'orders'
+                    : item.label === 'Vendors'
+                      ? view === 'vendors'
+                      : activeNav === item.label;
               return (
                 <button
                   key={item.label}
@@ -632,6 +639,16 @@ function App() {
                       }
                       setView('orders');
                       setActiveNav('Orders');
+                      return;
+                    }
+                    if (item.label === 'Vendors') {
+                      setView('vendors');
+                      setActiveNav('Vendors');
+                      return;
+                    }
+                    if (item.label === 'Saved') {
+                      setCheckoutMessage({ kind: 'error', text: 'Saved items is coming soon.' });
+                      setActiveNav('Saved');
                       return;
                     }
                     setActiveNav(item.label);
@@ -790,6 +807,41 @@ function App() {
         <AdminDashboard />
       ) : view === 'orders' && authUser ? (
         <CustomerOrders userId={authUser.id} />
+      ) : view === 'vendors' ? (
+        <main className="w-full max-w-[1200px] mx-auto px-6 py-8">
+          <h1 className="text-3xl font-black text-[#111827] mb-6">Vendors</h1>
+          {vendors.length === 0 ? (
+            <p className="text-sm text-[#667085]">No vendors have joined Sommygo yet — check back soon.</p>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+              {vendors.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => {
+                    setSearchQuery(v.name);
+                    setView('home');
+                    setActiveNav('Market');
+                    setTimeout(() => document.getElementById('shop-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+                  }}
+                  className="text-left bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200"
+                >
+                  <div className="w-12 h-12 rounded-full bg-[#f7f8fa] grid place-items-center mb-3 overflow-hidden">
+                    {v.logo_url ? (
+                      <img src={v.logo_url} alt={v.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="font-black text-[#1B5E3E]">{v.name.slice(0, 2).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <p className="font-bold text-[#111827]">{v.name}</p>
+                  <p className="text-xs text-[#667085] mt-1">
+                    {v.service_category ?? v.category ?? 'General'}
+                    {v.avg_rating != null && ` · ★ ${Number(v.avg_rating).toFixed(1)}`}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </main>
       ) : (
       <>
       {/* Main Content */}
