@@ -932,27 +932,41 @@ function App() {
               num: '01',
               title: 'Order anything nearby',
               desc: 'Food, groceries, pharmacy runs, market items, and daily needs in one flow.',
+              onClick: () => document.getElementById('shop-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
             },
             {
               num: '02',
               title: 'Track every step',
               desc: 'Follow pickup, rider movement, and delivery status from store to doorstep.',
+              onClick: () => {
+                if (!authUser) {
+                  setAuthOpen(true);
+                  return;
+                }
+                setView('orders');
+                setActiveNav('Orders');
+              },
             },
             {
               num: '03',
               title: 'Explore local details',
               desc: 'See vendors, ratings, active drops, delivery estimates, and item details fast.',
+              onClick: () => {
+                setView('vendors');
+                setActiveNav('Vendors');
+              },
             },
           ].map((item, i) => (
-            <article
+            <button
               key={item.num}
-              className="border border-[#e5e7eb] rounded-2xl bg-white p-6 shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] animate-fade-up"
+              onClick={item.onClick}
+              className="text-left border border-[#e5e7eb] rounded-2xl bg-white p-6 shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] animate-fade-up"
               style={{ animationDelay: `${i === 1 ? '90ms' : i === 2 ? '160ms' : '0ms'}` }}
             >
               <span className="text-[#1B5E3E] text-sm font-black">{item.num}</span>
               <h3 className="mt-4 mb-2 text-lg font-bold text-[#111827]">{item.title}</h3>
               <p className="text-[#667085] leading-relaxed text-sm">{item.desc}</p>
-            </article>
+            </button>
           ))}
         </section>
 
@@ -983,6 +997,7 @@ function App() {
                 desc: 'Local sellers just added rice, beans, tomatoes, vegetables, and cooking essentials.',
                 meta: `${vendors.filter((v) => v.service_category === 'Groceries' || v.service_category === 'Food & Drinks').length} vendors active`,
                 featured: true,
+                service: 'Food & Drinks' as const,
               },
               {
                 tag: 'Fast lane',
@@ -990,6 +1005,7 @@ function App() {
                 desc: 'Order wellness basics and household health items from trusted nearby shops.',
                 meta: `${vendors.filter((v) => v.service_category === 'Pharmacy').length} pharmacy vendors`,
                 featured: false,
+                service: 'Pharmacy' as const,
               },
               {
                 tag: 'Community picks',
@@ -997,11 +1013,18 @@ function App() {
                 desc: 'Browse neighborhood stores, saved favorites, ratings, and item details in one place.',
                 meta: `${vendors.length} vendor${vendors.length === 1 ? '' : 's'} on Sommygo`,
                 featured: false,
+                service: 'All' as const,
               },
             ].map((event, i) => (
-              <article
+              <button
                 key={event.title}
-                className={`min-h-[190px] border border-[#e5e7eb] rounded-2xl p-6 flex flex-col justify-between shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] animate-fade-up ${
+                onClick={() => {
+                  setActiveService(event.service);
+                  setActiveCategory('all');
+                  setSearchQuery('');
+                  document.getElementById('shop-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className={`text-left min-h-[190px] border border-[#e5e7eb] rounded-2xl p-6 flex flex-col justify-between shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] animate-fade-up ${
                   event.featured
                     ? 'bg-gradient-to-br from-[#1B5E3E]/10 via-[#2A9D8F]/5 to-white border-[#1B5E3E]/20'
                     : 'bg-white'
@@ -1018,7 +1041,7 @@ function App() {
                   <p className="text-[#667085] leading-relaxed text-sm mb-4">{event.desc}</p>
                 </div>
                 <small className="text-[#111827] font-black text-sm">{event.meta}</small>
-              </article>
+              </button>
             ))}
           </div>
         </section>
