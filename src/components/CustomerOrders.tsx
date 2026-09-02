@@ -74,6 +74,10 @@ export function CustomerOrders({ userId }: Props) {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelMessage, setCancelMessage] = useState<{ orderId: string; text: string; kind: 'success' | 'error' } | null>(
+    null,
+  );
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -98,6 +102,33 @@ export function CustomerOrders({ userId }: Props) {
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
+
+  const cancelOrder = async (orderId: string) => {
+    setCancellingId(orderId);
+    setCancelMessage(null);
+    try {
+      const { data, error: err } = await supabase.functions.invoke('cancel-order', {
+        body: { orderId },
+      });
+      if (err) {
+        const message = (data as any)?.error || err.message || 'Could not cancel this order.';
+        throw new Error(message);
+      }
+      const result = data as { success: boolean; refundIssued?: boolean; refundError?: string | null };
+      if (result.refundError) {
+        setCancelMessage({ orderId, kind: 'error', text: `Order cancelled, but: ${result.refundError}` });
+      } else if (result.refundIssued) {
+        setCancelMessage({ orderId, kind: 'success', text: 'Order cancelled and refunded.' });
+      } else {
+        setCancelMessage({ orderId, kind: 'success', text: 'Order cancelled.' });
+      }
+      await loadOrders();
+    } catch (err: any) {
+      setCancelMessage({ orderId, kind: 'error', text: err.message || 'Could not cancel this order.' });
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   return (
     <main className="w-full max-w-[1200px] mx-auto px-6 py-8">
@@ -159,6 +190,31 @@ export function CustomerOrders({ userId }: Props) {
                 </div>
               ))}
             </div>
+
+            {order.status === 'placed' && (
+              <div className="border-t border-[#f0f1f3] pt-3 mt-3">
+                {cancelMessage?.orderId === order.id && (
+                  <p
+                    className={`text-sm mb-2 ${
+                      cancelMessage.kind === 'success' ? 'text-[#1B5E3E]' : 'text-red-600'
+                    }`}
+                  >
+                    {cancelMessage.text}
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    if (window.confirm('Cancel this order? This cannot be undone.')) {
+                      cancelOrder(order.id);
+                    }
+                  }}
+                  disabled={cancellingId === order.id}
+                  className="text-sm font-bold text-red-600 hover:underline disabled:opacity-60"
+                >
+                  {cancellingId === order.id ? 'Cancelling…' : 'Cancel order'}
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
