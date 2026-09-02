@@ -69,6 +69,7 @@ interface BasketItem {
   vendorId: string | null;
   name: string;
   price: number;
+  quantity: number;
 }
 
 function App() {
@@ -275,16 +276,41 @@ function App() {
 
   const addToBasket = useCallback((product: Product) => {
     setCheckoutMessage(null);
-    setBasket((prev) => [
-      ...prev,
-      {
-        id: `${product.id}-${Date.now()}`,
-        menuItemId: product.id,
-        vendorId: product.vendorId,
-        name: product.name,
-        price: product.price,
-      },
-    ]);
+    setBasket((prev) => {
+      const existing = prev.find((it) => it.menuItemId === product.id);
+      if (existing) {
+        return prev.map((it) =>
+          it.menuItemId === product.id ? { ...it, quantity: it.quantity + 1 } : it,
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: `${product.id}-${Date.now()}`,
+          menuItemId: product.id,
+          vendorId: product.vendorId,
+          name: product.name,
+          price: product.price,
+          quantity: 1,
+        },
+      ];
+    });
+  }, []);
+
+  const incrementBasketItem = useCallback((menuItemId: string) => {
+    setBasket((prev) => prev.map((it) => (it.menuItemId === menuItemId ? { ...it, quantity: it.quantity + 1 } : it)));
+  }, []);
+
+  const decrementBasketItem = useCallback((menuItemId: string) => {
+    setBasket((prev) =>
+      prev
+        .map((it) => (it.menuItemId === menuItemId ? { ...it, quantity: it.quantity - 1 } : it))
+        .filter((it) => it.quantity > 0),
+    );
+  }, []);
+
+  const removeBasketItem = useCallback((menuItemId: string) => {
+    setBasket((prev) => prev.filter((it) => it.menuItemId !== menuItemId));
   }, []);
 
   const loadPaystack = useCallback((): Promise<any> => {
@@ -321,7 +347,7 @@ function App() {
         body: {
           vendorId,
           addressId,
-          items: basket.map((it) => ({ menuItemId: it.menuItemId, quantity: 1 })),
+          items: basket.map((it) => ({ menuItemId: it.menuItemId, quantity: it.quantity })),
         },
       });
       if (error) {
@@ -441,7 +467,7 @@ function App() {
   );
 
   const total = useMemo(() => {
-    return basket.reduce((sum, item) => sum + item.price, 0) + deliveryFee + serviceFee;
+    return basket.reduce((sum, item) => sum + item.price * item.quantity, 0) + deliveryFee + serviceFee;
   }, [basket]);
 
   const navItems = [
@@ -505,7 +531,7 @@ function App() {
               <ShoppingCart className="w-5 h-5 text-[#1B5E3E]" />
               {basket.length > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center">
-                  {basket.length}
+                  {basket.reduce((sum, it) => sum + it.quantity, 0)}
                 </span>
               )}
             </button>
@@ -1178,10 +1204,45 @@ function App() {
                 basket.map((item) => (
                   <div
                     key={item.id}
-                    className="min-h-[44px] rounded-xl bg-[#f7f8fa] flex justify-between gap-3 items-center px-3 py-2"
+                    className="rounded-xl bg-[#f7f8fa] flex justify-between gap-3 items-center px-3 py-2"
                   >
-                    <span className="text-[#667085] text-sm">{item.name}</span>
-                    <strong className="text-[#111827] whitespace-nowrap text-sm">₦{(Number(item.price) || 0).toLocaleString()}</strong>
+                    <div className="min-w-0">
+                      <p className="text-[#667085] text-sm truncate">{item.name}</p>
+                      <p className="text-[#9ca3af] text-xs">
+                        ₦{(Number(item.price) || 0).toLocaleString()} each
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-1 bg-white border border-[#e5e7eb] rounded-full px-1">
+                        <button
+                          onClick={() => decrementBasketItem(item.menuItemId)}
+                          aria-label={`Reduce ${item.name} quantity`}
+                          className="w-6 h-6 grid place-items-center rounded-full text-[#1B5E3E] font-bold hover:bg-[#f7f8fa]"
+                        >
+                          −
+                        </button>
+                        <span className="min-w-[18px] text-center text-sm font-bold text-[#111827]">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => incrementBasketItem(item.menuItemId)}
+                          aria-label={`Increase ${item.name} quantity`}
+                          className="w-6 h-6 grid place-items-center rounded-full text-[#1B5E3E] font-bold hover:bg-[#f7f8fa]"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <strong className="text-[#111827] whitespace-nowrap text-sm min-w-[70px] text-right">
+                        ₦{(Number(item.price) * item.quantity).toLocaleString()}
+                      </strong>
+                      <button
+                        onClick={() => removeBasketItem(item.menuItemId)}
+                        aria-label={`Remove ${item.name} from basket`}
+                        className="text-[#9ca3af] hover:text-red-600 text-sm px-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
