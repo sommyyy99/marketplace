@@ -334,18 +334,18 @@ function App() {
     });
   }, []);
 
-  // Calls the create-order edge function, which looks up real menu-item
-  // prices server-side and creates a "pending" order - the client can never
-  // set its own prices or mark an order as paid.
-  const createPendingOrder = useCallback(
-    async (vendorId: string, addressId: string) => {
+  // Calls the create-order edge function, which groups basket items by
+  // vendor and creates one order per vendor (since a rider can only pick up
+  // from one location per trip), all linked under one checkout group. Real
+  // prices are looked up server-side - the client can never set its own.
+  const createPendingOrders = useCallback(
+    async (addressId: string) => {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error('Please sign in again before placing your order.');
 
       const { data, error } = await supabase.functions.invoke('create-order', {
         body: {
-          vendorId,
           addressId,
           items: basket.map((it) => ({ menuItemId: it.menuItemId, quantity: it.quantity })),
         },
@@ -355,7 +355,8 @@ function App() {
         throw new Error(message);
       }
       return data as {
-        orderId: string;
+        checkoutGroupId: string;
+        orders: { orderId: string; vendorName: string; total: number }[];
         total: number;
         amountKobo: number;
         email: string;
@@ -365,10 +366,11 @@ function App() {
   );
 
   // Calls the verify-payment edge function, which confirms the transaction
-  // with Paystack's secret key server-side before the order is marked paid.
-  const verifyPayment = useCallback(async (orderId: string, reference: string) => {
+  // with Paystack's secret key server-side, then marks every order in the
+  // checkout group as paid together.
+  const verifyPayment = useCallback(async (checkoutGroupId: string, reference: string) => {
     const { data, error } = await supabase.functions.invoke('verify-payment', {
-      body: { orderId, reference },
+      body: { checkoutGroupId, reference },
     });
     if (error) {
       const message = (data as any)?.error || error.message || 'Payment could not be verified.';
@@ -380,17 +382,12 @@ function App() {
   const proceedToPayment = useCallback(
     async (addressId: string) => {
       if (!authUser) return;
-
-      const vendorId = basket[0]?.vendorId;
-      if (!vendorId) {
-        setCheckoutMessage({ kind: 'error', text: "This item isn't linked to a vendor yet." });
-        return;
-      }
+      if (basket.length === 0) return;
 
       setCheckoutLoading(true);
       try {
-        // Create the order server-side first so the total is trustworthy.
-        const { orderId, amountKobo, email } = await createPendingOrder(vendorId, addressId);
+        // Create one order per vendor server-side first so totals are trustworthy.
+        const { checkoutGroupId, orders, amountKobo, email } = await createPendingOrders(addressId);
         if (!email) {
           setCheckoutMessage({ kind: 'error', text: 'Your account has no email for payment.' });
           setCheckoutLoading(false);
@@ -406,9 +403,13 @@ function App() {
           callback: (response: { reference: string }) => {
             (async () => {
               try {
-                await verifyPayment(orderId, response.reference);
+                await verifyPayment(checkoutGroupId, response.reference);
                 setBasket([]);
-                setCheckoutMessage({ kind: 'success', text: `Payment successful! Order placed (ref ${response.reference}).` });
+                const vendorSummary = orders.map((o) => o.vendorName).join(', ');
+                setCheckoutMessage({
+                  kind: 'success',
+                  text: `Payment successful! ${orders.length > 1 ? `${orders.length} orders placed (${vendorSummary})` : 'Order placed'} (ref ${response.reference}).`,
+                });
               } catch (err: any) {
                 console.error('Payment verification failed', err);
                 setCheckoutMessage({ kind: 'error', text: err.message || 'Payment could not be verified. Contact support with your reference.' });
@@ -429,7 +430,7 @@ function App() {
         setCheckoutLoading(false);
       }
     },
-    [authUser, basket, loadPaystack, createPendingOrder, verifyPayment],
+    [authUser, basket, loadPaystack, createPendingOrders, verifyPayment],
   );
 
   // Validates the basket, then opens the delivery-address step before payment.
@@ -441,13 +442,8 @@ function App() {
     }
     if (basket.length === 0) return;
 
-    const vendorId = basket[0].vendorId;
-    if (!vendorId) {
+    if (basket.some((it) => !it.vendorId)) {
       setCheckoutMessage({ kind: 'error', text: "This item isn't linked to a vendor yet." });
-      return;
-    }
-    if (basket.some((it) => it.vendorId !== vendorId)) {
-      setCheckoutMessage({ kind: 'error', text: 'All items must be from the same vendor.' });
       return;
     }
     if (!authUser.email) {
@@ -466,9 +462,16 @@ function App() {
     [proceedToPayment],
   );
 
+  const basketVendorCount = useMemo(() => new Set(basket.map((it) => it.vendorId)).size, [basket]);
+
+  const subtotal = useMemo(() => basket.reduce((sum, item) => sum + item.price * item.quantity, 0), [basket]);
+
+  const totalDeliveryFee = useMemo(() => deliveryFee * Math.max(1, basketVendorCount), [basketVendorCount]);
+
   const total = useMemo(() => {
-    return basket.reduce((sum, item) => sum + item.price * item.quantity, 0) + deliveryFee + serviceFee;
-  }, [basket]);
+    if (basket.length === 0) return 0;
+    return subtotal + totalDeliveryFee + serviceFee;
+  }, [basket, subtotal, totalDeliveryFee]);
 
   const navItems = [
     { label: 'Market', icon: Store },
@@ -1250,8 +1253,10 @@ function App() {
 
             <div className="my-5 grid gap-2 border-t border-[#e5e7eb] pt-4">
               <div className="flex justify-between gap-3 items-center">
-                <span className="text-[#667085] text-sm">Delivery</span>
-                <strong className="text-[#111827] text-sm">₦{deliveryFee.toLocaleString()}</strong>
+                <span className="text-[#667085] text-sm">
+                  Delivery{basketVendorCount > 1 ? ` (${basketVendorCount} vendors)` : ''}
+                </span>
+                <strong className="text-[#111827] text-sm">₦{totalDeliveryFee.toLocaleString()}</strong>
               </div>
               <div className="flex justify-between gap-3 items-center">
                 <span className="text-[#667085] text-sm">Service fee</span>
@@ -1261,6 +1266,11 @@ function App() {
                 <span className="font-bold">Total</span>
                 <strong>₦{total.toLocaleString()}</strong>
               </div>
+              {basketVendorCount > 1 && (
+                <p className="text-xs text-[#667085] bg-[#f7f8fa] rounded-lg px-3 py-2 mt-1">
+                  Items from {basketVendorCount} vendors will arrive as {basketVendorCount} separate deliveries.
+                </p>
+              )}
             </div>
 
             {checkoutMessage && (
