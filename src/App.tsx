@@ -360,6 +360,7 @@ function App() {
         total: number;
         amountKobo: number;
         email: string;
+        splitCode: string;
       };
     },
     [basket],
@@ -387,7 +388,7 @@ function App() {
       setCheckoutLoading(true);
       try {
         // Create one order per vendor server-side first so totals are trustworthy.
-        const { checkoutGroupId, orders, amountKobo, email } = await createPendingOrders(addressId);
+        const { checkoutGroupId, orders, amountKobo, email, splitCode } = await createPendingOrders(addressId);
         if (!email) {
           setCheckoutMessage({ kind: 'error', text: 'Your account has no email for payment.' });
           setCheckoutLoading(false);
@@ -400,6 +401,7 @@ function App() {
           email,
           amount: amountKobo,
           currency: 'NGN',
+          split_code: splitCode,
           callback: (response: { reference: string }) => {
             (async () => {
               try {
