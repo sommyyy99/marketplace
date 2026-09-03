@@ -48,7 +48,22 @@ export function VendorDashboard({ userId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [tab, setTab] = useState<'orders' | 'menu'>('orders');
+  const [tab, setTab] = useState<'orders' | 'menu' | 'payouts'>('orders');
+
+  const [banks, setBanks] = useState<{ name: string; code: string }[]>([]);
+  const [banksLoading, setBanksLoading] = useState(false);
+  const [payoutInfo, setPayoutInfo] = useState<{
+    paystack_subaccount_code: string | null;
+    paystack_bank_code: string | null;
+    paystack_account_number: string | null;
+    paystack_account_name: string | null;
+  } | null>(null);
+  const [selectedBankCode, setSelectedBankCode] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [resolvedAccountName, setResolvedAccountName] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const [savingPayout, setSavingPayout] = useState(false);
+  const [payoutError, setPayoutError] = useState<string | null>(null);
 
   const [menuItems, setMenuItems] = useState<MenuItemRow[]>([]);
   const [menuError, setMenuError] = useState<string | null>(null);
@@ -142,7 +157,7 @@ export function VendorDashboard({ userId }: Props) {
       setError(null);
       const { data: vendor, error: vErr } = await supabase
         .from('vendors')
-        .select('id')
+        .select('id, paystack_subaccount_code, paystack_bank_code, paystack_account_number, paystack_account_name')
         .eq('owner_id', userId)
         .maybeSingle();
       if (cancelled) return;
@@ -152,6 +167,12 @@ export function VendorDashboard({ userId }: Props) {
         return;
       }
       setVendorId(vendor.id);
+      setPayoutInfo({
+        paystack_subaccount_code: vendor.paystack_subaccount_code,
+        paystack_bank_code: vendor.paystack_bank_code,
+        paystack_account_number: vendor.paystack_account_number,
+        paystack_account_name: vendor.paystack_account_name,
+      });
       await Promise.all([loadOrders(vendor.id), loadMenuItems(vendor.id), loadCategories(vendor.id)]);
       if (!cancelled) setLoading(false);
     })();
@@ -159,6 +180,81 @@ export function VendorDashboard({ userId }: Props) {
       cancelled = true;
     };
   }, [userId, loadOrders, loadMenuItems, loadCategories]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setBanksLoading(true);
+      const { data, error: err } = await supabase.functions.invoke('vendor-payout-setup', {
+        body: { action: 'list_banks' },
+      });
+      if (cancelled) return;
+      if (!err && (data as any)?.banks) {
+        setBanks((data as any).banks);
+      }
+      setBanksLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const resolveAccount = async () => {
+    setPayoutError(null);
+    setResolvedAccountName(null);
+    if (!selectedBankCode || accountNumber.trim().length < 10) {
+      setPayoutError('Select a bank and enter a valid 10-digit account number.');
+      return;
+    }
+    setResolving(true);
+    try {
+      const { data, error: err } = await supabase.functions.invoke('vendor-payout-setup', {
+        body: { action: 'resolve_account', bankCode: selectedBankCode, accountNumber: accountNumber.trim() },
+      });
+      if (err) {
+        const message = (data as any)?.error || err.message || 'Could not verify this account number.';
+        throw new Error(message);
+      }
+      setResolvedAccountName((data as any).accountName);
+    } catch (e: any) {
+      setPayoutError(e.message || 'Could not verify this account number.');
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const savePayoutAccount = async () => {
+    if (!resolvedAccountName) return;
+    setPayoutError(null);
+    setSavingPayout(true);
+    try {
+      const { data, error: err } = await supabase.functions.invoke('vendor-payout-setup', {
+        body: {
+          action: 'save_subaccount',
+          bankCode: selectedBankCode,
+          accountNumber: accountNumber.trim(),
+          accountName: resolvedAccountName,
+        },
+      });
+      if (err) {
+        const message = (data as any)?.error || err.message || 'Could not save payout account.';
+        throw new Error(message);
+      }
+      setPayoutInfo({
+        paystack_subaccount_code: (data as any).subaccountCode,
+        paystack_bank_code: selectedBankCode,
+        paystack_account_number: accountNumber.trim(),
+        paystack_account_name: resolvedAccountName,
+      });
+      setResolvedAccountName(null);
+      setAccountNumber('');
+      setSelectedBankCode('');
+    } catch (e: any) {
+      setPayoutError(e.message || 'Could not save payout account.');
+    } finally {
+      setSavingPayout(false);
+    }
+  };
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,12 +367,110 @@ export function VendorDashboard({ userId }: Props) {
         >
           Your Menu
         </button>
+        <button
+          onClick={() => setTab('payouts')}
+          className={`min-h-[40px] rounded-full px-4 text-sm font-bold transition-colors ${
+            tab === 'payouts' ? 'bg-[#1B5E3E] text-white' : 'bg-[#f7f8fa] text-[#667085] hover:text-[#111827]'
+          }`}
+        >
+          Payouts
+          {!payoutInfo?.paystack_subaccount_code && (
+            <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-amber-400 text-[10px] text-white px-1">
+              !
+            </span>
+          )}
+        </button>
       </div>
 
       {loading && <p className="text-[#667085]">Loading...</p>}
       {error && (
         <div className="rounded-xl bg-red-50 border border-red-200 text-red-800 px-4 py-3 mb-4 text-sm">
           {error}
+        </div>
+      )}
+
+      {!loading && !error && tab === 'payouts' && (
+        <div className="max-w-lg">
+          {payoutInfo?.paystack_subaccount_code ? (
+            <div className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm">
+              <p className="text-sm font-bold text-[#1B5E3E] mb-2">✓ Payouts connected</p>
+              <p className="text-[#111827] font-bold">{payoutInfo.paystack_account_name}</p>
+              <p className="text-sm text-[#667085]">
+                Account ending in {payoutInfo.paystack_account_number?.slice(-4)}
+              </p>
+              <p className="text-xs text-[#667085] mt-3">
+                You'll automatically receive the exact subtotal for your goods on every order - delivery and
+                service fees go to the platform.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white border border-[#e5e7eb] rounded-2xl p-5 shadow-sm">
+              <p className="text-sm font-bold text-[#111827] mb-1">Set up payouts</p>
+              <p className="text-xs text-[#667085] mb-4">
+                Connect your bank account so you're paid automatically for every order - orders can't be
+                accepted until this is set up.
+              </p>
+
+              <label className="block text-xs font-bold text-[#667085] mb-1">Bank</label>
+              <select
+                value={selectedBankCode}
+                onChange={(e) => {
+                  setSelectedBankCode(e.target.value);
+                  setResolvedAccountName(null);
+                }}
+                disabled={banksLoading}
+                className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E] bg-white mb-3"
+              >
+                <option value="">{banksLoading ? 'Loading banks…' : 'Select your bank'}</option>
+                {banks.map((b) => (
+                  <option key={b.code} value={b.code}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+
+              <label className="block text-xs font-bold text-[#667085] mb-1">Account number</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={accountNumber}
+                onChange={(e) => {
+                  setAccountNumber(e.target.value.replace(/\D/g, ''));
+                  setResolvedAccountName(null);
+                }}
+                placeholder="0123456789"
+                className="w-full min-h-[44px] rounded-full border border-[#e5e7eb] px-4 text-sm outline-none focus:border-[#1B5E3E] mb-3"
+              />
+
+              {payoutError && <p className="text-sm text-red-600 mb-3">{payoutError}</p>}
+
+              {resolvedAccountName ? (
+                <div className="bg-[#f7f8fa] rounded-xl px-4 py-3 mb-3">
+                  <p className="text-xs text-[#667085]">Account name</p>
+                  <p className="font-bold text-[#111827]">{resolvedAccountName}</p>
+                </div>
+              ) : null}
+
+              {resolvedAccountName ? (
+                <button
+                  onClick={savePayoutAccount}
+                  disabled={savingPayout}
+                  className="w-full min-h-[44px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] disabled:opacity-60"
+                >
+                  {savingPayout ? 'Saving…' : 'Confirm and save'}
+                </button>
+              ) : (
+                <button
+                  onClick={resolveAccount}
+                  disabled={resolving || banksLoading}
+                  className="w-full min-h-[44px] rounded-full bg-[#1B5E3E] text-white font-bold hover:bg-[#144d32] disabled:opacity-60"
+                >
+                  {resolving ? 'Verifying…' : 'Verify account'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
