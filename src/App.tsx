@@ -15,6 +15,7 @@ interface VendorRow {
   id: string;
   name: string;
   avg_rating: number | null;
+  review_count: number | null;
   logo_url: string | null;
   category: string | null;
   service_category: string | null;
@@ -182,7 +183,7 @@ function App() {
     (async () => {
       const { data, error } = await supabase
         .from('vendors')
-        .select('id, name, avg_rating, logo_url, category, service_category')
+        .select('id, name, avg_rating, review_count, logo_url, category, service_category')
         .eq('is_active', true)
         .eq('is_open', true)
         .order('avg_rating', { ascending: false });
@@ -854,7 +855,8 @@ function App() {
                   <p className="font-bold text-[#111827]">{v.name}</p>
                   <p className="text-xs text-[#667085] mt-1">
                     {v.service_category ?? v.category ?? 'General'}
-                    {v.avg_rating != null && ` · ★ ${Number(v.avg_rating).toFixed(1)}`}
+                    {v.avg_rating != null && v.review_count! > 0 &&
+                      ` · ★ ${Number(v.avg_rating).toFixed(1)} (${v.review_count})`}
                   </p>
                 </button>
               ))}
@@ -1318,7 +1320,9 @@ function App() {
                       <p className="m-0">
                         <strong className="block text-sm text-[#111827]">{vendor.name}</strong>
                         <small className="block text-[#667085] text-xs mt-0.5">
-                          {vendor.avg_rating ? `${Number(vendor.avg_rating).toFixed(1)} rating` : 'New vendor'}
+                          {vendor.avg_rating && vendor.review_count! > 0
+                            ? `★ ${Number(vendor.avg_rating).toFixed(1)} (${vendor.review_count})`
+                            : 'New vendor'}
                           {vendor.category ? ` | ${vendor.category}` : ''}
                         </small>
                       </p>
