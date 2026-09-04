@@ -190,6 +190,7 @@ export type Database = {
         Row: {
           accepted_at: string | null
           cancelled_at: string | null
+          checkout_group_id: string | null
           customer_id: string | null
           delivered_at: string | null
           delivery_address_id: string | null
@@ -209,6 +210,7 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           cancelled_at?: string | null
+          checkout_group_id?: string | null
           customer_id?: string | null
           delivered_at?: string | null
           delivery_address_id?: string | null
@@ -228,6 +230,7 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           cancelled_at?: string | null
+          checkout_group_id?: string | null
           customer_id?: string | null
           delivered_at?: string | null
           delivery_address_id?: string | null
@@ -341,7 +344,7 @@ export type Database = {
           {
             foreignKeyName: "reviews_order_id_fkey"
             columns: ["order_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -411,6 +414,11 @@ export type Database = {
           name: string
           opening_time: string | null
           owner_id: string | null
+          paystack_account_name: string | null
+          paystack_account_number: string | null
+          paystack_bank_code: string | null
+          paystack_subaccount_code: string | null
+          review_count: number
           service_category: string | null
           street_address: string | null
         }
@@ -432,6 +440,11 @@ export type Database = {
           name: string
           opening_time?: string | null
           owner_id?: string | null
+          paystack_account_name?: string | null
+          paystack_account_number?: string | null
+          paystack_bank_code?: string | null
+          paystack_subaccount_code?: string | null
+          review_count?: number
           service_category?: string | null
           street_address?: string | null
         }
@@ -453,6 +466,11 @@ export type Database = {
           name?: string
           opening_time?: string | null
           owner_id?: string | null
+          paystack_account_name?: string | null
+          paystack_account_number?: string | null
+          paystack_bank_code?: string | null
+          paystack_subaccount_code?: string | null
+          review_count?: number
           service_category?: string | null
           street_address?: string | null
         }
@@ -495,12 +513,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -524,11 +542,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -549,11 +567,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -574,11 +592,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -591,11 +609,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
