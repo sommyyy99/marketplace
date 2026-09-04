@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../integrations/supabase/client';
+import { invokeEdgeFunction } from '../lib/invokeEdgeFunction';
 
 const STATUS_FLOW = ['placed', 'accepted', 'preparing', 'out_for_delivery', 'delivered'] as const;
 type Status = typeof STATUS_FLOW[number];
@@ -185,14 +186,15 @@ export function VendorDashboard({ userId }: Props) {
     let cancelled = false;
     (async () => {
       setBanksLoading(true);
-      const { data, error: err } = await supabase.functions.invoke('vendor-payout-setup', {
-        body: { action: 'list_banks' },
-      });
-      if (cancelled) return;
-      if (!err && (data as any)?.banks) {
-        setBanks((data as any).banks);
+      try {
+        const result = await invokeEdgeFunction<{ banks: { name: string; code: string }[] }>('vendor-payout-setup', {
+          action: 'list_banks',
+        });
+        if (!cancelled) setBanks(result.banks ?? []);
+      } catch {
+        // Bank list failing to load isn't fatal - the dropdown just stays empty.
       }
-      setBanksLoading(false);
+      if (!cancelled) setBanksLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -208,14 +210,12 @@ export function VendorDashboard({ userId }: Props) {
     }
     setResolving(true);
     try {
-      const { data, error: err } = await supabase.functions.invoke('vendor-payout-setup', {
-        body: { action: 'resolve_account', bankCode: selectedBankCode, accountNumber: accountNumber.trim() },
+      const result = await invokeEdgeFunction<{ accountName: string }>('vendor-payout-setup', {
+        action: 'resolve_account',
+        bankCode: selectedBankCode,
+        accountNumber: accountNumber.trim(),
       });
-      if (err) {
-        const message = (data as any)?.error || err.message || 'Could not verify this account number.';
-        throw new Error(message);
-      }
-      setResolvedAccountName((data as any).accountName);
+      setResolvedAccountName(result.accountName);
     } catch (e: any) {
       setPayoutError(e.message || 'Could not verify this account number.');
     } finally {
@@ -228,20 +228,14 @@ export function VendorDashboard({ userId }: Props) {
     setPayoutError(null);
     setSavingPayout(true);
     try {
-      const { data, error: err } = await supabase.functions.invoke('vendor-payout-setup', {
-        body: {
-          action: 'save_subaccount',
-          bankCode: selectedBankCode,
-          accountNumber: accountNumber.trim(),
-          accountName: resolvedAccountName,
-        },
+      const result = await invokeEdgeFunction<{ subaccountCode: string }>('vendor-payout-setup', {
+        action: 'save_subaccount',
+        bankCode: selectedBankCode,
+        accountNumber: accountNumber.trim(),
+        accountName: resolvedAccountName,
       });
-      if (err) {
-        const message = (data as any)?.error || err.message || 'Could not save payout account.';
-        throw new Error(message);
-      }
       setPayoutInfo({
-        paystack_subaccount_code: (data as any).subaccountCode,
+        paystack_subaccount_code: result.subaccountCode,
         paystack_bank_code: selectedBankCode,
         paystack_account_number: accountNumber.trim(),
         paystack_account_name: resolvedAccountName,
