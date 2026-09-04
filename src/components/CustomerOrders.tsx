@@ -20,6 +20,12 @@ interface OrderItemRow {
   price: number;
 }
 
+interface ReviewRow {
+  id: string;
+  rating: number;
+  comment: string | null;
+}
+
 interface OrderRow {
   id: string;
   status: string;
@@ -28,8 +34,10 @@ interface OrderRow {
   subtotal: number;
   delivery_fee: number;
   placed_at: string | null;
+  vendor_id: string | null;
   vendor: { name: string } | null;
   order_items: OrderItemRow[];
+  reviews: ReviewRow[];
 }
 
 interface Props {
@@ -71,6 +79,35 @@ function StatusTracker({ status }: { status: string }) {
   );
 }
 
+function StarRating({
+  value,
+  onChange,
+  readOnly = false,
+}: {
+  value: number;
+  onChange?: (v: number) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          disabled={readOnly}
+          onClick={() => onChange?.(n)}
+          aria-label={`${n} star${n > 1 ? 's' : ''}`}
+          className={`text-lg leading-none ${readOnly ? 'cursor-default' : 'cursor-pointer hover:scale-110 transition-transform'} ${
+            n <= value ? 'text-amber-400' : 'text-[#e5e7eb]'
+          }`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function CustomerOrders({ userId }: Props) {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,7 +123,7 @@ export function CustomerOrders({ userId }: Props) {
     const { data, error: err } = await supabase
       .from('orders')
       .select(
-        'id, status, payment_status, total, subtotal, delivery_fee, placed_at, vendor:vendors!orders_vendor_id_fkey(name), order_items(id, name, quantity, price)'
+        'id, status, payment_status, total, subtotal, delivery_fee, placed_at, vendor_id, vendor:vendors!orders_vendor_id_fkey(name), order_items(id, name, quantity, price), reviews(id, rating, comment)'
       )
       .eq('customer_id', userId)
       .order('placed_at', { ascending: false });
@@ -124,6 +161,40 @@ export function CustomerOrders({ userId }: Props) {
       setCancelMessage({ orderId, kind: 'error', text: err.message || 'Could not cancel this order.' });
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const [reviewDraft, setReviewDraft] = useState<Record<string, { rating: number; comment: string }>>({});
+  const [submittingReviewId, setSubmittingReviewId] = useState<string | null>(null);
+  const [reviewMessage, setReviewMessage] = useState<{ orderId: string; text: string; kind: 'success' | 'error' } | null>(
+    null,
+  );
+
+  const submitReview = async (order: OrderRow) => {
+    const draft = reviewDraft[order.id];
+    if (!draft || draft.rating < 1) {
+      setReviewMessage({ orderId: order.id, kind: 'error', text: 'Pick a star rating first.' });
+      return;
+    }
+    if (!order.vendor_id) return;
+
+    setSubmittingReviewId(order.id);
+    setReviewMessage(null);
+    try {
+      const { error: err } = await supabase.from('reviews').insert({
+        order_id: order.id,
+        customer_id: userId,
+        vendor_id: order.vendor_id,
+        rating: draft.rating,
+        comment: draft.comment.trim() || null,
+      });
+      if (err) throw err;
+      setReviewMessage({ orderId: order.id, kind: 'success', text: 'Thanks for your review!' });
+      await loadOrders();
+    } catch (err: any) {
+      setReviewMessage({ orderId: order.id, kind: 'error', text: err.message || 'Could not submit your review.' });
+    } finally {
+      setSubmittingReviewId(null);
     }
   };
 
@@ -210,6 +281,61 @@ export function CustomerOrders({ userId }: Props) {
                 >
                   {cancellingId === order.id ? 'Cancelling…' : 'Cancel order'}
                 </button>
+              </div>
+            )}
+
+            {order.status === 'delivered' && (
+              <div className="border-t border-[#f0f1f3] pt-3 mt-3">
+                {order.reviews.length > 0 ? (
+                  <div>
+                    <p className="text-xs font-bold text-[#667085] mb-1">Your review</p>
+                    <StarRating value={order.reviews[0].rating} readOnly />
+                    {order.reviews[0].comment && (
+                      <p className="text-sm text-[#667085] mt-1">{order.reviews[0].comment}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-xs font-bold text-[#667085] mb-2">Rate this order</p>
+                    <StarRating
+                      value={reviewDraft[order.id]?.rating ?? 0}
+                      onChange={(rating) =>
+                        setReviewDraft((prev) => ({
+                          ...prev,
+                          [order.id]: { rating, comment: prev[order.id]?.comment ?? '' },
+                        }))
+                      }
+                    />
+                    <textarea
+                      value={reviewDraft[order.id]?.comment ?? ''}
+                      onChange={(e) =>
+                        setReviewDraft((prev) => ({
+                          ...prev,
+                          [order.id]: { rating: prev[order.id]?.rating ?? 0, comment: e.target.value },
+                        }))
+                      }
+                      placeholder="Optional: say a bit about your experience"
+                      rows={2}
+                      className="w-full mt-2 rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm outline-none focus:border-[#1B5E3E]"
+                    />
+                    {reviewMessage?.orderId === order.id && (
+                      <p
+                        className={`text-sm mt-1 ${
+                          reviewMessage.kind === 'success' ? 'text-[#1B5E3E]' : 'text-red-600'
+                        }`}
+                      >
+                        {reviewMessage.text}
+                      </p>
+                    )}
+                    <button
+                      onClick={() => submitReview(order)}
+                      disabled={submittingReviewId === order.id}
+                      className="mt-2 rounded-full bg-[#1B5E3E] text-white text-sm font-bold px-4 py-1.5 hover:bg-[#144d32] disabled:opacity-60"
+                    >
+                      {submittingReviewId === order.id ? 'Submitting…' : 'Submit review'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
