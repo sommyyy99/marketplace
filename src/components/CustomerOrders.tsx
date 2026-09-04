@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../integrations/supabase/client';
+import { invokeEdgeFunction } from '../lib/invokeEdgeFunction';
 
 const STATUS_FLOW = ['placed', 'accepted', 'preparing', 'out_for_delivery', 'delivered'] as const;
 
@@ -107,14 +108,10 @@ export function CustomerOrders({ userId }: Props) {
     setCancellingId(orderId);
     setCancelMessage(null);
     try {
-      const { data, error: err } = await supabase.functions.invoke('cancel-order', {
-        body: { orderId },
-      });
-      if (err) {
-        const message = (data as any)?.error || err.message || 'Could not cancel this order.';
-        throw new Error(message);
-      }
-      const result = data as { success: boolean; refundIssued?: boolean; refundError?: string | null };
+      const result = await invokeEdgeFunction<{ success: boolean; refundIssued?: boolean; refundError?: string | null }>(
+        'cancel-order',
+        { orderId },
+      );
       if (result.refundError) {
         setCancelMessage({ orderId, kind: 'error', text: `Order cancelled, but: ${result.refundError}` });
       } else if (result.refundIssued) {
