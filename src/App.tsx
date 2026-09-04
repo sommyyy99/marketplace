@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { User as SupaUser } from '@supabase/supabase-js';
 import { supabase } from './integrations/supabase/client';
+import { invokeEdgeFunction } from './lib/invokeEdgeFunction';
 import { AuthModal } from './components/AuthModal';
 import { AddressStep } from './components/AddressStep';
 import { BecomeVendorModal } from './components/BecomeVendorModal';
@@ -344,24 +345,17 @@ function App() {
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error('Please sign in again before placing your order.');
 
-      const { data, error } = await supabase.functions.invoke('create-order', {
-        body: {
-          addressId,
-          items: basket.map((it) => ({ menuItemId: it.menuItemId, quantity: it.quantity })),
-        },
-      });
-      if (error) {
-        const message = (data as any)?.error || error.message || 'Could not create the order.';
-        throw new Error(message);
-      }
-      return data as {
+      return invokeEdgeFunction<{
         checkoutGroupId: string;
         orders: { orderId: string; vendorName: string; total: number }[];
         total: number;
         amountKobo: number;
         email: string;
         splitCode: string;
-      };
+      }>('create-order', {
+        addressId,
+        items: basket.map((it) => ({ menuItemId: it.menuItemId, quantity: it.quantity })),
+      });
     },
     [basket],
   );
@@ -370,13 +364,7 @@ function App() {
   // with Paystack's secret key server-side, then marks every order in the
   // checkout group as paid together.
   const verifyPayment = useCallback(async (checkoutGroupId: string, reference: string) => {
-    const { data, error } = await supabase.functions.invoke('verify-payment', {
-      body: { checkoutGroupId, reference },
-    });
-    if (error) {
-      const message = (data as any)?.error || error.message || 'Payment could not be verified.';
-      throw new Error(message);
-    }
+    await invokeEdgeFunction('verify-payment', { checkoutGroupId, reference });
   }, []);
 
   // Kicks off the Paystack popup once a delivery address has been chosen/saved.
