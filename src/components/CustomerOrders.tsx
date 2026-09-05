@@ -37,7 +37,7 @@ interface OrderRow {
   vendor_id: string | null;
   vendor: { name: string } | null;
   order_items: OrderItemRow[];
-  reviews: ReviewRow[];
+  review: ReviewRow | null;
 }
 
 interface Props {
@@ -123,7 +123,7 @@ export function CustomerOrders({ userId }: Props) {
     const { data, error: err } = await supabase
       .from('orders')
       .select(
-        'id, status, payment_status, total, subtotal, delivery_fee, placed_at, vendor_id, vendor:vendors!orders_vendor_id_fkey(name), order_items(id, name, quantity, price), reviews(id, rating, comment)'
+        'id, status, payment_status, total, subtotal, delivery_fee, placed_at, vendor_id, vendor:vendors!orders_vendor_id_fkey(name), order_items(id, name, quantity, price), review:reviews(id, rating, comment)'
       )
       .eq('customer_id', userId)
       .order('placed_at', { ascending: false });
@@ -286,12 +286,12 @@ export function CustomerOrders({ userId }: Props) {
 
             {order.status === 'delivered' && (
               <div className="border-t border-[#f0f1f3] pt-3 mt-3">
-                {order.reviews.length > 0 ? (
+                {order.review ? (
                   <div>
                     <p className="text-xs font-bold text-[#667085] mb-1">Your review</p>
-                    <StarRating value={order.reviews[0].rating} readOnly />
-                    {order.reviews[0].comment && (
-                      <p className="text-sm text-[#667085] mt-1">{order.reviews[0].comment}</p>
+                    <StarRating value={order.review.rating} readOnly />
+                    {order.review.comment && (
+                      <p className="text-sm text-[#667085] mt-1">{order.review.comment}</p>
                     )}
                   </div>
                 ) : (
