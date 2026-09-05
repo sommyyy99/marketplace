@@ -28,13 +28,22 @@ interface OrderRow {
   vendor: { name: string } | null;
 }
 
-type Tab = 'vendors' | 'riders' | 'orders';
+interface FeedbackRow {
+  id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  customer: { full_name: string | null } | null;
+}
+
+type Tab = 'vendors' | 'riders' | 'orders' | 'feedback';
 
 export function AdminDashboard() {
   const [tab, setTab] = useState<Tab>('vendors');
   const [vendors, setVendors] = useState<VendorRow[]>([]);
   const [riders, setRiders] = useState<RiderRow[]>([]);
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -42,7 +51,7 @@ export function AdminDashboard() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [vendorsRes, ridersRes, ordersRes] = await Promise.all([
+    const [vendorsRes, ridersRes, ordersRes, feedbackRes] = await Promise.all([
       supabase
         .from('vendors')
         .select('id, name, service_category, street_address, is_active, is_open, created_at, owner_id')
@@ -53,16 +62,26 @@ export function AdminDashboard() {
         .select('id, status, payment_status, total, placed_at, vendor:vendors!orders_vendor_id_fkey(name)')
         .order('placed_at', { ascending: false })
         .limit(50),
+      supabase
+        .from('app_feedback')
+        .select('id, rating, comment, created_at, customer:profiles!app_feedback_customer_id_fkey(full_name)')
+        .order('created_at', { ascending: false })
+        .limit(100),
     ]);
 
-    if (vendorsRes.error || ridersRes.error || ordersRes.error) {
+    if (vendorsRes.error || ridersRes.error || ordersRes.error || feedbackRes.error) {
       setError(
-        vendorsRes.error?.message || ridersRes.error?.message || ordersRes.error?.message || 'Failed to load admin data.'
+        vendorsRes.error?.message ||
+          ridersRes.error?.message ||
+          ordersRes.error?.message ||
+          feedbackRes.error?.message ||
+          'Failed to load admin data.'
       );
     } else {
       setVendors((vendorsRes.data as VendorRow[]) ?? []);
       setRiders((ridersRes.data as RiderRow[]) ?? []);
       setOrders((ordersRes.data as unknown as OrderRow[]) ?? []);
+      setFeedback((feedbackRes.data as unknown as FeedbackRow[]) ?? []);
     }
     setLoading(false);
   }, []);
@@ -87,7 +106,7 @@ export function AdminDashboard() {
       <h1 className="text-3xl font-black text-[#111827] mb-6">Admin Dashboard</h1>
 
       <div className="flex gap-2 mb-6">
-        {(['vendors', 'riders', 'orders'] as Tab[]).map((t) => (
+        {(['vendors', 'riders', 'orders', 'feedback'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -216,6 +235,48 @@ export function AdminDashboard() {
                 <p className="font-black text-[#111827]">₦{Number(o.total).toLocaleString()}</p>
               </div>
             ))
+          )}
+        </div>
+      )}
+
+      {!loading && !error && tab === 'feedback' && (
+        <div>
+          {feedback.length === 0 ? (
+            <p className="text-sm text-[#667085]">No app feedback submitted yet.</p>
+          ) : (
+            <>
+              <div className="bg-white border border-[#e5e7eb] rounded-2xl p-4 shadow-sm mb-4 flex items-center gap-3">
+                <span className="text-3xl font-black text-[#111827]">
+                  {(feedback.reduce((s, f) => s + f.rating, 0) / feedback.length).toFixed(1)}
+                </span>
+                <div>
+                  <p className="text-amber-400 leading-none">
+                    {'★'.repeat(Math.round(feedback.reduce((s, f) => s + f.rating, 0) / feedback.length))}
+                    <span className="text-[#e5e7eb]">
+                      {'★'.repeat(5 - Math.round(feedback.reduce((s, f) => s + f.rating, 0) / feedback.length))}
+                    </span>
+                  </p>
+                  <p className="text-xs text-[#667085] mt-1">
+                    Average from {feedback.length} response{feedback.length === 1 ? '' : 's'} · visible to admins only
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-3">
+                {feedback.map((f) => (
+                  <div key={f.id} className="bg-white border border-[#e5e7eb] rounded-2xl p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <p className="font-bold text-[#111827]">{f.customer?.full_name ?? 'A customer'}</p>
+                      <p className="text-xs text-[#667085]">{new Date(f.created_at).toLocaleString()}</p>
+                    </div>
+                    <p className="text-amber-400 leading-none">
+                      {'★'.repeat(f.rating)}
+                      <span className="text-[#e5e7eb]">{'★'.repeat(5 - f.rating)}</span>
+                    </p>
+                    {f.comment && <p className="text-sm text-[#667085] mt-2">{f.comment}</p>}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
