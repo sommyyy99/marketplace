@@ -32,6 +32,7 @@ interface MenuItemRow {
   price: number;
   is_available: boolean | null;
   category_id: string | null;
+  image_url: string | null;
 }
 
 interface CategoryRow {
@@ -73,7 +74,13 @@ export function VendorDashboard({ userId }: Props) {
   const [newItemPrice, setNewItemPrice] = useState('');
   const [newItemDescription, setNewItemDescription] = useState('');
   const [newItemCategoryId, setNewItemCategoryId] = useState('');
+  const [newItemImageFile, setNewItemImageFile] = useState<File | null>(null);
   const [addingItem, setAddingItem] = useState(false);
+
+  const [vendorLogoUrl, setVendorLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [uploadingItemImageId, setUploadingItemImageId] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -140,7 +147,7 @@ export function VendorDashboard({ userId }: Props) {
   const loadMenuItems = useCallback(async (vId: string) => {
     const { data, error: err } = await supabase
       .from('menu_items')
-      .select('id, name, description, price, is_available, category_id')
+      .select('id, name, description, price, is_available, category_id, image_url')
       .eq('vendor_id', vId)
       .order('name', { ascending: true });
     if (err) {
@@ -158,7 +165,7 @@ export function VendorDashboard({ userId }: Props) {
       setError(null);
       const { data: vendor, error: vErr } = await supabase
         .from('vendors')
-        .select('id, paystack_subaccount_code, paystack_bank_code, paystack_account_number, paystack_account_name')
+        .select('id, logo_url, paystack_subaccount_code, paystack_bank_code, paystack_account_number, paystack_account_name')
         .eq('owner_id', userId)
         .maybeSingle();
       if (cancelled) return;
@@ -168,6 +175,7 @@ export function VendorDashboard({ userId }: Props) {
         return;
       }
       setVendorId(vendor.id);
+      setVendorLogoUrl(vendor.logo_url);
       setPayoutInfo({
         paystack_subaccount_code: vendor.paystack_subaccount_code,
         paystack_bank_code: vendor.paystack_bank_code,
@@ -250,6 +258,22 @@ export function VendorDashboard({ userId }: Props) {
     }
   };
 
+  const uploadVendorMedia = async (file: File, path: string): Promise<string> => {
+    if (!file.type.startsWith('image/')) {
+      throw new Error('Please choose an image file.');
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error('Image must be smaller than 5MB.');
+    }
+    const { error: uploadErr } = await supabase.storage.from('vendor-media').upload(path, file, {
+      upsert: true,
+      cacheControl: '3600',
+    });
+    if (uploadErr) throw uploadErr;
+    const { data } = supabase.storage.from('vendor-media').getPublicUrl(path);
+    return data.publicUrl;
+  };
+
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vendorId) return;
@@ -264,12 +288,19 @@ export function VendorDashboard({ userId }: Props) {
 
     setAddingItem(true);
     try {
+      let imageUrl: string | null = null;
+      if (newItemImageFile) {
+        const ext = newItemImageFile.name.split('.').pop() || 'jpg';
+        imageUrl = await uploadVendorMedia(newItemImageFile, `${vendorId}/items/${crypto.randomUUID()}.${ext}`);
+      }
+
       const { error: insertErr } = await supabase.from('menu_items').insert({
         vendor_id: vendorId,
         name: trimmedName,
         price: priceValue,
         description: newItemDescription.trim() || null,
         category_id: newItemCategoryId || null,
+        image_url: imageUrl,
         is_available: true,
       });
       if (insertErr) throw insertErr;
@@ -277,11 +308,46 @@ export function VendorDashboard({ userId }: Props) {
       setNewItemName('');
       setNewItemPrice('');
       setNewItemDescription('');
+      setNewItemImageFile(null);
       await loadMenuItems(vendorId);
     } catch (err: any) {
       setMenuError(err.message || 'Could not add this item. Please try again.');
     } finally {
       setAddingItem(false);
+    }
+  };
+
+  const changeItemImage = async (item: MenuItemRow, file: File) => {
+    if (!vendorId) return;
+    setUploadingItemImageId(item.id);
+    setMenuError(null);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const imageUrl = await uploadVendorMedia(file, `${vendorId}/items/${item.id}-${Date.now()}.${ext}`);
+      const { error: updateErr } = await supabase.from('menu_items').update({ image_url: imageUrl }).eq('id', item.id);
+      if (updateErr) throw updateErr;
+      await loadMenuItems(vendorId);
+    } catch (err: any) {
+      setMenuError(err.message || 'Could not upload this image.');
+    } finally {
+      setUploadingItemImageId(null);
+    }
+  };
+
+  const changeVendorLogo = async (file: File) => {
+    if (!vendorId) return;
+    setUploadingLogo(true);
+    setLogoError(null);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const logoUrl = await uploadVendorMedia(file, `${vendorId}/logo-${Date.now()}.${ext}`);
+      const { error: updateErr } = await supabase.from('vendors').update({ logo_url: logoUrl }).eq('id', vendorId);
+      if (updateErr) throw updateErr;
+      setVendorLogoUrl(logoUrl);
+    } catch (err: any) {
+      setLogoError(err.message || 'Could not upload your logo.');
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -470,6 +536,34 @@ export function VendorDashboard({ userId }: Props) {
 
       {!loading && !error && tab === 'menu' && (
         <div>
+          <div className="bg-white border border-[#e5e7eb] rounded-2xl p-4 shadow-sm mb-4 flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-[#f7f8fa] grid place-items-center overflow-hidden flex-shrink-0">
+              {vendorLogoUrl ? (
+                <img src={vendorLogoUrl} alt="Store logo" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs text-[#9ca3af]">No logo</span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#111827] mb-1">Store logo</p>
+              <label className="inline-block rounded-full bg-[#f7f8fa] text-[#1B5E3E] font-bold px-4 py-1.5 text-sm cursor-pointer hover:bg-[#e5e7eb]">
+                {uploadingLogo ? 'Uploading…' : vendorLogoUrl ? 'Change logo' : 'Upload logo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingLogo}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) changeVendorLogo(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {logoError && <p className="text-xs text-red-600 mt-1">{logoError}</p>}
+            </div>
+          </div>
+
           <form
             onSubmit={handleAddCategory}
             className="bg-white border border-[#e5e7eb] rounded-2xl p-4 shadow-sm mb-4 flex flex-wrap items-center gap-3"
@@ -552,6 +646,15 @@ export function VendorDashboard({ userId }: Props) {
                 </option>
               ))}
             </select>
+            <label className="w-full min-h-[44px] rounded-full border border-dashed border-[#e5e7eb] px-4 text-sm flex items-center gap-2 cursor-pointer hover:border-[#1B5E3E] sm:col-span-1 text-[#667085]">
+              📷 {newItemImageFile ? newItemImageFile.name.slice(0, 20) : 'Photo (optional)'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => setNewItemImageFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
             <button
               type="submit"
               disabled={addingItem}
@@ -571,11 +674,34 @@ export function VendorDashboard({ userId }: Props) {
                   key={item.id}
                   className="bg-white border border-[#e5e7eb] rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3"
                 >
-                  <div className="min-w-0">
-                    <p className="font-bold text-[#111827]">{item.name}</p>
-                    {item.description && (
-                      <p className="text-sm text-[#667085] truncate max-w-[320px]">{item.description}</p>
-                    )}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-lg bg-[#f7f8fa] grid place-items-center overflow-hidden flex-shrink-0">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[10px] text-[#9ca3af]">No photo</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-[#111827]">{item.name}</p>
+                      {item.description && (
+                        <p className="text-sm text-[#667085] truncate max-w-[320px]">{item.description}</p>
+                      )}
+                      <label className="text-xs font-bold text-[#1B5E3E] cursor-pointer hover:underline">
+                        {uploadingItemImageId === item.id ? 'Uploading…' : item.image_url ? 'Change photo' : 'Add photo'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingItemImageId === item.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) changeItemImage(item, file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
