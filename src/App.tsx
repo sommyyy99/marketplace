@@ -90,7 +90,8 @@ function App() {
   const [authUser, setAuthUser] = useState<SupaUser | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileRole, setProfileRole] = useState<string | null>(null);
-  const [view, setView] = useState<'home' | 'dashboard' | 'orders' | 'riderDashboard' | 'adminDashboard' | 'vendors'>('home');
+  const [view, setView] = useState<'home' | 'dashboard' | 'orders' | 'riderDashboard' | 'adminDashboard' | 'vendors' | 'saved'>('home');
+  const [savedItemIds, setSavedItemIds] = useState<Set<string>>(new Set());
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -275,6 +276,63 @@ function App() {
     if (activeService === 'All') return vendors;
     return vendors.filter((v) => v.service_category === activeService);
   }, [activeService, vendors]);
+
+  useEffect(() => {
+    if (!authUser) {
+      setSavedItemIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.from('saved_items').select('menu_item_id').eq('customer_id', authUser.id);
+      if (cancelled) return;
+      if (!error && data) {
+        setSavedItemIds(new Set(data.map((d) => d.menu_item_id)));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
+
+  const toggleSaved = useCallback(
+    async (productId: string) => {
+      if (!authUser) {
+        setAuthOpen(true);
+        return;
+      }
+      const isSaved = savedItemIds.has(productId);
+      // Optimistic update for a snappy heart toggle.
+      setSavedItemIds((prev) => {
+        const next = new Set(prev);
+        if (isSaved) next.delete(productId);
+        else next.add(productId);
+        return next;
+      });
+      if (isSaved) {
+        const { error } = await supabase
+          .from('saved_items')
+          .delete()
+          .eq('customer_id', authUser.id)
+          .eq('menu_item_id', productId);
+        if (error) setSavedItemIds((prev) => new Set(prev).add(productId));
+      } else {
+        const { error } = await supabase
+          .from('saved_items')
+          .insert({ customer_id: authUser.id, menu_item_id: productId });
+        if (error) {
+          setSavedItemIds((prev) => {
+            const next = new Set(prev);
+            next.delete(productId);
+            return next;
+          });
+        }
+      }
+    },
+    [authUser, savedItemIds],
+  );
+
+  const savedProducts = useMemo(() => products.filter((p) => savedItemIds.has(p.id)), [products, savedItemIds]);
 
   const addToBasket = useCallback((product: Product) => {
     setCheckoutMessage(null);
@@ -642,7 +700,9 @@ function App() {
                     ? view === 'orders'
                     : item.label === 'Vendors'
                       ? view === 'vendors'
-                      : activeNav === item.label;
+                      : item.label === 'Saved'
+                        ? view === 'saved'
+                        : activeNav === item.label;
               return (
                 <button
                   key={item.label}
@@ -667,7 +727,11 @@ function App() {
                       return;
                     }
                     if (item.label === 'Saved') {
-                      setCheckoutMessage({ kind: 'error', text: 'Saved items is coming soon.' });
+                      if (!authUser) {
+                        setAuthOpen(true);
+                        return;
+                      }
+                      setView('saved');
                       setActiveNav('Saved');
                       return;
                     }
@@ -859,6 +923,49 @@ function App() {
                       ` · ★ ${Number(v.avg_rating).toFixed(1)} (${v.review_count})`}
                   </p>
                 </button>
+              ))}
+            </div>
+          )}
+        </main>
+      ) : view === 'saved' ? (
+        <main className="w-full max-w-[1200px] mx-auto px-6 py-8">
+          <h1 className="text-3xl font-black text-[#111827] mb-6">Saved items</h1>
+          {savedProducts.length === 0 ? (
+            <p className="text-sm text-[#667085]">
+              Nothing saved yet — tap the heart on any item in the Market to save it here.
+            </p>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4">
+              {savedProducts.map((product) => (
+                <article
+                  key={product.id}
+                  className="min-w-0 bg-white border border-[#e5e7eb] rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_16px_rgba(0,0,0,0.04)]"
+                >
+                  <div className="relative">
+                    <img src={product.image} alt={product.name} className="w-full aspect-[4/3] object-cover" loading="lazy" />
+                    <button
+                      onClick={() => toggleSaved(product.id)}
+                      aria-label="Remove from saved"
+                      className="absolute top-2 right-2 w-8 h-8 grid place-items-center rounded-full bg-white/90 shadow-md hover:scale-110 transition-transform"
+                    >
+                      <span className="text-red-500">♥</span>
+                    </button>
+                  </div>
+                  <div className="px-4 pt-4 pb-2">
+                    <span className="block text-[#1B5E3E] text-xs font-black mb-1">{product.vendor}</span>
+                    <h3 className="text-base font-bold text-[#111827] mb-1">{product.name}</h3>
+                    <p className="text-[#667085] text-sm leading-snug">{product.description}</p>
+                  </div>
+                  <footer className="mt-auto flex items-center justify-between gap-3 px-4 pt-2 pb-4">
+                    <strong className="text-[#111827]">₦{(Number(product.price) || 0).toLocaleString()}</strong>
+                    <button
+                      onClick={() => addToBasket(product)}
+                      className="rounded-full bg-[#1B5E3E] text-white font-bold px-4 py-2 hover:bg-[#144d32] transition-colors text-sm shadow-md"
+                    >
+                      Add
+                    </button>
+                  </footer>
+                </article>
               ))}
             </div>
           )}
@@ -1154,12 +1261,23 @@ function App() {
                   className="min-w-0 bg-white border border-[#e5e7eb] rounded-2xl overflow-hidden flex flex-col shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] animate-fade-up"
                   style={{ animationDelay: `${i === 1 ? '90ms' : i === 2 ? '160ms' : '0ms'}` }}
                 >
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full aspect-[4/3] object-cover"
-                    loading="lazy"
-                  />
+                  <div className="relative">
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="w-full aspect-[4/3] object-cover"
+                      loading="lazy"
+                    />
+                    <button
+                      onClick={() => toggleSaved(product.id)}
+                      aria-label={savedItemIds.has(product.id) ? 'Remove from saved' : 'Save this item'}
+                      className="absolute top-2 right-2 w-8 h-8 grid place-items-center rounded-full bg-white/90 shadow-md hover:scale-110 transition-transform"
+                    >
+                      <span className={savedItemIds.has(product.id) ? 'text-red-500' : 'text-[#9ca3af]'}>
+                        {savedItemIds.has(product.id) ? '♥' : '♡'}
+                      </span>
+                    </button>
+                  </div>
                   <div className="px-4 pt-4 pb-2">
                     <span className="block text-[#1B5E3E] text-xs font-black mb-1">
                       {product.vendor}
