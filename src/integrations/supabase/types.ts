@@ -435,6 +435,42 @@ export type Database = {
           },
         ]
       }
+      saved_items: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          menu_item_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          menu_item_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          menu_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_items_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_items_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           avg_rating: number | null
