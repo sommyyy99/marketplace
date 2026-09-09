@@ -59,11 +59,22 @@ import {
   Heart,
   Users,
   User,
+  Bell,
 } from 'lucide-react';
 import {
   deliveryFee,
   serviceFee,
 } from './data/products';
+
+interface NotificationRow {
+  id: string;
+  title: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+  link_type: string | null;
+  link_id: string | null;
+}
 
 interface BasketItem {
   id: string;
@@ -92,6 +103,8 @@ function App() {
   const [profileRole, setProfileRole] = useState<string | null>(null);
   const [view, setView] = useState<'home' | 'dashboard' | 'orders' | 'riderDashboard' | 'adminDashboard' | 'vendors' | 'saved'>('home');
   const [savedItemIds, setSavedItemIds] = useState<Set<string>>(new Set());
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -334,6 +347,67 @@ function App() {
 
   const savedProducts = useMemo(() => products.filter((p) => savedItemIds.has(p.id)), [products, savedItemIds]);
 
+  useEffect(() => {
+    if (!authUser) {
+      setNotifications([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id, title, body, is_read, created_at, link_type, link_id')
+        .eq('user_id', authUser.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (!cancelled && !error) setNotifications((data as NotificationRow[]) ?? []);
+    })();
+
+    // Live-update instantly whenever a new notification is inserted for this
+    // user (order accepted, new review, vendor approved, etc.) - no polling.
+    const channel = supabase
+      .channel(`notifications-${authUser.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${authUser.id}` },
+        (payload) => {
+          setNotifications((prev) => [payload.new as NotificationRow, ...prev].slice(0, 30));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [authUser]);
+
+  const unreadNotificationCount = useMemo(() => notifications.filter((n) => !n.is_read).length, [notifications]);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+  }, []);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!authUser) return;
+    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
+    if (unreadIds.length === 0) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    await supabase.from('notifications').update({ is_read: true }).eq('user_id', authUser.id).eq('is_read', false);
+  }, [authUser, notifications]);
+
+  const formatRelativeTime = (iso: string) => {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
   const addToBasket = useCallback((product: Product) => {
     setCheckoutMessage(null);
     setBasket((prev) => {
@@ -575,6 +649,59 @@ function App() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-3">
+            {authUser && (
+              <div className="relative">
+                <button
+                  onClick={() => setNotificationsOpen((v) => !v)}
+                  className="relative w-10 h-10 grid place-items-center rounded-full bg-white border border-[#e5e7eb] shadow-sm hover:shadow-md transition-shadow"
+                  aria-label="Notifications"
+                >
+                  <Bell className="w-5 h-5 text-[#1B5E3E]" />
+                  {unreadNotificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center">
+                      {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                    </span>
+                  )}
+                </button>
+                {notificationsOpen && (
+                  <div className="absolute right-0 mt-2 w-80 max-h-[420px] overflow-y-auto bg-white border border-[#e5e7eb] rounded-2xl shadow-xl z-50">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0f1f3] sticky top-0 bg-white">
+                      <p className="font-bold text-[#111827] text-sm">Notifications</p>
+                      {unreadNotificationCount > 0 && (
+                        <button
+                          onClick={markAllNotificationsRead}
+                          className="text-xs font-bold text-[#1B5E3E] hover:underline"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                    {notifications.length === 0 ? (
+                      <p className="text-sm text-[#667085] px-4 py-6 text-center">No notifications yet.</p>
+                    ) : (
+                      notifications.map((n) => (
+                        <button
+                          key={n.id}
+                          onClick={() => markNotificationRead(n.id)}
+                          className={`w-full text-left px-4 py-3 border-b border-[#f7f8fa] hover:bg-[#f7f8fa] transition-colors ${
+                            !n.is_read ? 'bg-[#1B5E3E]/5' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {!n.is_read && <span className="w-2 h-2 rounded-full bg-[#1B5E3E] mt-1.5 flex-shrink-0" />}
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-[#111827]">{n.title}</p>
+                              <p className="text-xs text-[#667085] mt-0.5">{n.body}</p>
+                              <p className="text-[10px] text-[#9ca3af] mt-1">{formatRelativeTime(n.created_at)}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <button
               onClick={() => document.getElementById('basket-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               className="relative w-10 h-10 grid place-items-center rounded-full bg-white border border-[#e5e7eb] shadow-sm hover:shadow-md transition-shadow"
