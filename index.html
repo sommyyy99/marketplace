@@ -42,46 +42,6 @@
         </section>
       </main>
     </div>
-    <script type="module">
-      const shell = document.querySelector('[data-startup-shell]');
-      const message = shell?.querySelector('[data-startup-message]');
-      const retryButton = shell?.querySelector('[data-startup-retry]');
-
-      let attempt = 0;
-      let loading = false;
-      let mounted = false;
-      let timer;
-
-      window.addEventListener('sommygo:mounted', () => {
-        mounted = true;
-        window.clearTimeout(timer);
-      }, { once: true });
-
-      const loadEntry = async () => {
-        if (mounted || loading) return;
-        loading = true;
-        attempt += 1;
-        try {
-          await import(`/src/main.tsx?startup=${attempt}`);
-        } catch (error) {
-          console.warn(`App entry load attempt ${attempt} failed.`, error);
-          if (message) message.textContent = 'Reconnecting to your preview…';
-          timer = window.setTimeout(loadEntry, Math.min(1000 * attempt, 4000));
-        } finally {
-          loading = false;
-        }
-      };
-
-      retryButton?.addEventListener('click', () => {
-        window.clearTimeout(timer);
-        shell?.removeAttribute('data-state');
-        loadEntry();
-      });
-      window.addEventListener('online', loadEntry);
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') loadEntry();
-      });
-      loadEntry();
-    </script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
