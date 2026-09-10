@@ -163,9 +163,13 @@ export function VendorDashboard({ userId }: Props) {
     (async () => {
       setLoading(true);
       setError(null);
+      // The payout columns are no longer readable via a direct table query
+      // (anon/authenticated have zero column-level access to them for
+      // security - only the service role, via this edge function, can read
+      // them), so we fetch id/logo_url directly and payout status separately.
       const { data: vendor, error: vErr } = await supabase
         .from('vendors')
-        .select('id, logo_url, paystack_subaccount_code, paystack_bank_code, paystack_account_number, paystack_account_name')
+        .select('id, logo_url')
         .eq('owner_id', userId)
         .maybeSingle();
       if (cancelled) return;
@@ -176,12 +180,27 @@ export function VendorDashboard({ userId }: Props) {
       }
       setVendorId(vendor.id);
       setVendorLogoUrl(vendor.logo_url);
-      setPayoutInfo({
-        paystack_subaccount_code: vendor.paystack_subaccount_code,
-        paystack_bank_code: vendor.paystack_bank_code,
-        paystack_account_number: vendor.paystack_account_number,
-        paystack_account_name: vendor.paystack_account_name,
-      });
+
+      try {
+        const status = await invokeEdgeFunction<{
+          subaccountCode: string | null;
+          bankCode: string | null;
+          accountNumber: string | null;
+          accountName: string | null;
+        }>('vendor-payout-setup', { action: 'get_status' });
+        if (!cancelled) {
+          setPayoutInfo({
+            paystack_subaccount_code: status.subaccountCode,
+            paystack_bank_code: status.bankCode,
+            paystack_account_number: status.accountNumber,
+            paystack_account_name: status.accountName,
+          });
+        }
+      } catch {
+        // Non-fatal - the Payouts tab will just show the "set up payouts"
+        // prompt if this fails, which is still a safe default.
+      }
+
       await Promise.all([loadOrders(vendor.id), loadMenuItems(vendor.id), loadCategories(vendor.id)]);
       if (!cancelled) setLoading(false);
     })();
