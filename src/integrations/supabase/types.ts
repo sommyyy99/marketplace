@@ -285,6 +285,7 @@ export type Database = {
           payment_status: string
           placed_at: string | null
           rider_id: string | null
+          scheduled_for: string | null
           status: string
           subtotal: number
           total: number
@@ -305,6 +306,7 @@ export type Database = {
           payment_status?: string
           placed_at?: string | null
           rider_id?: string | null
+          scheduled_for?: string | null
           status?: string
           subtotal?: number
           total?: number
@@ -325,6 +327,7 @@ export type Database = {
           payment_status?: string
           placed_at?: string | null
           rider_id?: string | null
+          scheduled_for?: string | null
           status?: string
           subtotal?: number
           total?: number
