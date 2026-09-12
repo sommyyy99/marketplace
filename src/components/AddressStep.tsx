@@ -124,26 +124,39 @@ export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepPro
             {addresses.length > 0 && (
               <>
                 <label className="text-sm font-bold text-[#111827]">Deliver to</label>
-                <select
-                  value={mode === 'new' ? '__new' : selectedId}
-                  onChange={(e) => {
-                    if (e.target.value === '__new') {
-                      setMode('new');
-                    } else {
-                      setMode('pick');
-                      setSelectedId(e.target.value);
-                    }
-                  }}
-                  className={inputClass}
-                >
-                  {addresses.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label ? `${a.label} — ` : ''}
-                      {a.street_address}, {a.city}, {a.state}
-                    </option>
-                  ))}
-                  <option value="__new">+ Add a new address</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={mode === 'new' ? '__new' : selectedId}
+                    onChange={(e) => {
+                      if (e.target.value === '__new') {
+                        setMode('new');
+                      } else {
+                        setMode('pick');
+                        setSelectedId(e.target.value);
+                      }
+                    }}
+                    className={inputClass}
+                  >
+                    {addresses.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.label ? `${a.label} — ` : ''}
+                        {a.street_address}, {a.city}, {a.state}
+                      </option>
+                    ))}
+                    <option value="__new">+ Add a new address</option>
+                  </select>
+                  {mode === 'pick' && selectedId && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteAddress}
+                      disabled={deletingId === selectedId}
+                      aria-label="Remove this address"
+                      className="min-h-[46px] shrink-0 rounded-xl border border-[#e5e7eb] px-3 text-sm font-bold text-[#667085] hover:border-red-300 hover:text-red-600 disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </>
             )}
 
