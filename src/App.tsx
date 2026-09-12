@@ -520,6 +520,8 @@ function App() {
           setCheckoutLoading(false);
           return;
         }
+        // Show exactly what Paystack will charge.
+        setChargedTotal(amountKobo / 100);
 
         const PaystackPop = await loadPaystack();
         const handler = PaystackPop.setup({
@@ -527,7 +529,7 @@ function App() {
           email,
           amount: amountKobo,
           currency: 'NGN',
-          split_code: splitCode,
+          ...(splitCode ? { split_code: splitCode } : {}),
           callback: (response: { reference: string }) => {
             (async () => {
               try {
