@@ -447,6 +447,16 @@ function App() {
     setBasket((prev) => prev.filter((it) => it.menuItemId !== menuItemId));
   }, []);
 
+  // The amount the order service actually charges. Once we know it, the basket
+  // shows this instead of the locally-calculated total so the price on screen
+  // can never differ from the amount charged.
+  const [chargedTotal, setChargedTotal] = useState<number | null>(null);
+
+  // Editing the basket invalidates any amount we were quoted.
+  useEffect(() => {
+    setChargedTotal(null);
+  }, [basket]);
+
   const loadPaystack = useCallback((): Promise<any> => {
     return new Promise((resolve, reject) => {
       if (typeof window === 'undefined') return reject(new Error('No window'));
@@ -515,6 +525,8 @@ function App() {
           setCheckoutLoading(false);
           return;
         }
+        // Show exactly what Paystack will charge.
+        setChargedTotal(amountKobo / 100);
 
         const PaystackPop = await loadPaystack();
         const handler = PaystackPop.setup({
@@ -522,12 +534,13 @@ function App() {
           email,
           amount: amountKobo,
           currency: 'NGN',
-          split_code: splitCode,
+          ...(splitCode ? { split_code: splitCode } : {}),
           callback: (response: { reference: string }) => {
             (async () => {
               try {
                 await verifyPayment(checkoutGroupId, response.reference);
                 setBasket([]);
+                setChargedTotal(null);
                 const vendorSummary = orders.map((o) => o.vendorName).join(', ');
                 setCheckoutMessage({
                   kind: 'success',
@@ -543,12 +556,14 @@ function App() {
           },
           onClose: () => {
             setCheckoutLoading(false);
-            setCheckoutMessage({ kind: 'error', text: 'Payment cancelled. Your order was not placed.' });
+            setChargedTotal(null);
+            setCheckoutMessage({ kind: 'error', text: 'Payment cancelled. Your order is saved but unpaid.' });
           },
         });
         handler.openIframe();
       } catch (err: any) {
         console.error('Checkout failed', err);
+        setChargedTotal(null);
         setCheckoutMessage({ kind: 'error', text: err.message || 'Checkout failed. Please try again.' });
         setCheckoutLoading(false);
       }
@@ -1501,7 +1516,7 @@ function App() {
               </div>
               <div className="flex justify-between gap-3 items-center text-base text-[#111827] pt-2">
                 <span className="font-bold">Total</span>
-                <strong>₦{total.toLocaleString()}</strong>
+                <strong>₦{(chargedTotal ?? total).toLocaleString()}</strong>
               </div>
               {basketVendorCount > 1 && (
                 <p className="text-xs text-[#667085] bg-[#f7f8fa] rounded-lg px-3 py-2 mt-1">
