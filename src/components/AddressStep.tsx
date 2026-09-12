@@ -27,6 +27,7 @@ export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepPro
   const [stateName, setStateName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -104,6 +105,31 @@ export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepPro
       return;
     }
     onConfirm(data.id);
+  };
+
+  const handleDeleteAddress = async () => {
+    if (!selectedId) return;
+    setError(null);
+    setDeletingId(selectedId);
+    const { error: deleteErr } = await supabase
+      .from('addresses')
+      .delete()
+      .eq('id', selectedId)
+      .eq('user_id', userId);
+    setDeletingId(null);
+    if (deleteErr) {
+      console.error('Failed to delete address', deleteErr);
+      setError('Could not remove this address. It may be used by a past order.');
+      return;
+    }
+    const remaining = addresses.filter((a) => a.id !== selectedId);
+    setAddresses(remaining);
+    if (remaining.length > 0) {
+      setSelectedId(remaining[0].id);
+    } else {
+      setSelectedId('');
+      setMode('new');
+    }
   };
 
   const inputClass =
