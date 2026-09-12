@@ -447,6 +447,11 @@ function App() {
     setBasket((prev) => prev.filter((it) => it.menuItemId !== menuItemId));
   }, []);
 
+  // The amount the order service actually charges. Once we know it, the basket
+  // shows this instead of the locally-calculated total so the price on screen
+  // can never differ from the amount charged.
+  const [chargedTotal, setChargedTotal] = useState<number | null>(null);
+
   const loadPaystack = useCallback((): Promise<any> => {
     return new Promise((resolve, reject) => {
       if (typeof window === 'undefined') return reject(new Error('No window'));
