@@ -535,6 +535,7 @@ function App() {
               try {
                 await verifyPayment(checkoutGroupId, response.reference);
                 setBasket([]);
+                setChargedTotal(null);
                 const vendorSummary = orders.map((o) => o.vendorName).join(', ');
                 setCheckoutMessage({
                   kind: 'success',
@@ -550,12 +551,14 @@ function App() {
           },
           onClose: () => {
             setCheckoutLoading(false);
-            setCheckoutMessage({ kind: 'error', text: 'Payment cancelled. Your order was not placed.' });
+            setChargedTotal(null);
+            setCheckoutMessage({ kind: 'error', text: 'Payment cancelled. Your order is saved but unpaid.' });
           },
         });
         handler.openIframe();
       } catch (err: any) {
         console.error('Checkout failed', err);
+        setChargedTotal(null);
         setCheckoutMessage({ kind: 'error', text: err.message || 'Checkout failed. Please try again.' });
         setCheckoutLoading(false);
       }
