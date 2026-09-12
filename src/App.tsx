@@ -1501,7 +1501,7 @@ function App() {
               </div>
               <div className="flex justify-between gap-3 items-center text-base text-[#111827] pt-2">
                 <span className="font-bold">Total</span>
-                <strong>₦{total.toLocaleString()}</strong>
+                <strong>₦{(chargedTotal ?? total).toLocaleString()}</strong>
               </div>
               {basketVendorCount > 1 && (
                 <p className="text-xs text-[#667085] bg-[#f7f8fa] rounded-lg px-3 py-2 mt-1">
