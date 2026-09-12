@@ -452,6 +452,11 @@ function App() {
   // can never differ from the amount charged.
   const [chargedTotal, setChargedTotal] = useState<number | null>(null);
 
+  // Editing the basket invalidates any amount we were quoted.
+  useEffect(() => {
+    setChargedTotal(null);
+  }, [basket]);
+
   const loadPaystack = useCallback((): Promise<any> => {
     return new Promise((resolve, reject) => {
       if (typeof window === 'undefined') return reject(new Error('No window'));
