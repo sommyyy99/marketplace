@@ -20,6 +20,7 @@ interface OrderRow {
   subtotal: number;
   delivery_fee: number;
   placed_at: string | null;
+  scheduled_for: string | null;
   customer_id: string | null;
   customer: { full_name: string | null } | null;
   order_items: OrderItem[];
@@ -132,9 +133,13 @@ export function VendorDashboard({ userId }: Props) {
     const { data, error: err } = await supabase
       .from('orders')
       .select(
-        'id, status, payment_status, total, subtotal, delivery_fee, placed_at, customer_id, customer:profiles!orders_customer_id_fkey(full_name), order_items(id, name, quantity, price)'
+        'id, status, payment_status, total, subtotal, delivery_fee, placed_at, scheduled_for, customer_id, customer:profiles!orders_customer_id_fkey(full_name), order_items(id, name, quantity, price)'
       )
       .eq('vendor_id', vId)
+      // Vendors should only ever see orders that were actually paid for -
+      // a "pending" order (customer closed the payment popup) isn't real
+      // yet and shouldn't clutter their dashboard.
+      .eq('payment_status', 'paid')
       .order('placed_at', { ascending: false });
     if (err) {
       setError(err.message);
@@ -802,6 +807,11 @@ export function VendorDashboard({ userId }: Props) {
                       ? new Date(order.placed_at).toLocaleString()
                       : '—'}
                   </p>
+                  {order.scheduled_for && (
+                    <p className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-1 inline-block">
+                      📅 Scheduled: {new Date(order.scheduled_for).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span
