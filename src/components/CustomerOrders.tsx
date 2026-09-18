@@ -40,6 +40,7 @@ interface OrderRow {
   subtotal: number;
   delivery_fee: number;
   placed_at: string | null;
+  scheduled_for: string | null;
   vendor_id: string | null;
   vendor: { name: string } | null;
   order_items: OrderItemRow[];
@@ -130,7 +131,7 @@ export function CustomerOrders({ userId }: Props) {
     const { data, error: err } = await supabase
       .from('orders')
       .select(
-        'id, status, payment_status, total, subtotal, delivery_fee, placed_at, vendor_id, vendor:vendors!orders_vendor_id_fkey(name), order_items(id, name, quantity, price), review:reviews(id, rating, comment), app_feedback(id, rating, comment)'
+        'id, status, payment_status, total, subtotal, delivery_fee, placed_at, scheduled_for, vendor_id, vendor:vendors!orders_vendor_id_fkey(name), order_items(id, name, quantity, price), review:reviews(id, rating, comment), app_feedback(id, rating, comment)'
       )
       .eq('customer_id', userId)
       .order('placed_at', { ascending: false });
@@ -270,6 +271,11 @@ export function CustomerOrders({ userId }: Props) {
                 <p className="text-xs text-[#667085]">
                   {order.placed_at ? new Date(order.placed_at).toLocaleString() : ''}
                 </p>
+                {order.scheduled_for && (
+                  <p className="text-xs font-bold text-[#1B5E3E] mt-0.5">
+                    📅 Scheduled for {new Date(order.scheduled_for).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                  </p>
+                )}
               </div>
               <div className="text-right">
                 <p className="font-black text-[#111827]">₦{Number(order.total).toLocaleString()}</p>
