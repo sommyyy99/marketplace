@@ -13,7 +13,7 @@ interface AddressStepProps {
   userId: string;
   open: boolean;
   onClose: () => void;
-  onConfirm: (addressId: string) => void;
+  onConfirm: (addressId: string, scheduledFor: string | null) => void;
 }
 
 export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepProps) {
@@ -27,7 +27,22 @@ export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepPro
   const [stateName, setStateName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deliveryTiming, setDeliveryTiming] = useState<'asap' | 'schedule'>('asap');
+  const [scheduledDateTime, setScheduledDateTime] = useState('');
+
+  // Earliest a scheduled delivery can be selected: 20 minutes from now,
+  // rounded up to the next 5-minute mark for a tidy default in the picker.
+  const minScheduleValue = (() => {
+    const d = new Date(Date.now() + 20 * 60 * 1000);
+    d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
+  const maxScheduleValue = (() => {
+    const d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
 
   useEffect(() => {
     if (!open) return;
@@ -68,12 +83,26 @@ export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepPro
     e.preventDefault();
     setError(null);
 
+    let scheduledFor: string | null = null;
+    if (deliveryTiming === 'schedule') {
+      if (!scheduledDateTime) {
+        setError('Please choose a delivery time, or switch to "As soon as possible".');
+        return;
+      }
+      const chosen = new Date(scheduledDateTime);
+      if (Number.isNaN(chosen.getTime()) || chosen < new Date(Date.now() + 19 * 60 * 1000)) {
+        setError('Scheduled time must be at least 20 minutes from now.');
+        return;
+      }
+      scheduledFor = chosen.toISOString();
+    }
+
     if (mode === 'pick') {
       if (!selectedId) {
         setError('Please choose a delivery address.');
         return;
       }
-      onConfirm(selectedId);
+      onConfirm(selectedId, scheduledFor);
       return;
     }
 
@@ -104,32 +133,7 @@ export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepPro
       setError(insertErr?.message || 'Could not save your address. Please try again.');
       return;
     }
-    onConfirm(data.id);
-  };
-
-  const handleDeleteAddress = async () => {
-    if (!selectedId) return;
-    setError(null);
-    setDeletingId(selectedId);
-    const { error: deleteErr } = await supabase
-      .from('addresses')
-      .delete()
-      .eq('id', selectedId)
-      .eq('user_id', userId);
-    setDeletingId(null);
-    if (deleteErr) {
-      console.error('Failed to delete address', deleteErr);
-      setError('Could not remove this address. It may be used by a past order.');
-      return;
-    }
-    const remaining = addresses.filter((a) => a.id !== selectedId);
-    setAddresses(remaining);
-    if (remaining.length > 0) {
-      setSelectedId(remaining[0].id);
-    } else {
-      setSelectedId('');
-      setMode('new');
-    }
+    onConfirm(data.id, scheduledFor);
   };
 
   const inputClass =
@@ -150,39 +154,26 @@ export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepPro
             {addresses.length > 0 && (
               <>
                 <label className="text-sm font-bold text-[#111827]">Deliver to</label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={mode === 'new' ? '__new' : selectedId}
-                    onChange={(e) => {
-                      if (e.target.value === '__new') {
-                        setMode('new');
-                      } else {
-                        setMode('pick');
-                        setSelectedId(e.target.value);
-                      }
-                    }}
-                    className={inputClass}
-                  >
-                    {addresses.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.label ? `${a.label} — ` : ''}
-                        {a.street_address}, {a.city}, {a.state}
-                      </option>
-                    ))}
-                    <option value="__new">+ Add a new address</option>
-                  </select>
-                  {mode === 'pick' && selectedId && (
-                    <button
-                      type="button"
-                      onClick={handleDeleteAddress}
-                      disabled={deletingId === selectedId}
-                      aria-label="Remove this address"
-                      className="min-h-[46px] shrink-0 rounded-xl border border-[#e5e7eb] px-3 text-sm font-bold text-[#667085] hover:border-red-300 hover:text-red-600 disabled:opacity-60"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
+                <select
+                  value={mode === 'new' ? '__new' : selectedId}
+                  onChange={(e) => {
+                    if (e.target.value === '__new') {
+                      setMode('new');
+                    } else {
+                      setMode('pick');
+                      setSelectedId(e.target.value);
+                    }
+                  }}
+                  className={inputClass}
+                >
+                  {addresses.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label ? `${a.label} — ` : ''}
+                      {a.street_address}, {a.city}, {a.state}
+                    </option>
+                  ))}
+                  <option value="__new">+ Add a new address</option>
+                </select>
               </>
             )}
 
@@ -222,6 +213,42 @@ export function AddressStep({ userId, open, onClose, onConfirm }: AddressStepPro
             )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <label className="text-sm font-bold text-[#111827] mt-1">When?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setDeliveryTiming('asap')}
+                className={`min-h-[44px] rounded-xl border text-sm font-bold transition-colors ${
+                  deliveryTiming === 'asap'
+                    ? 'bg-[#1B5E3E] text-white border-[#1B5E3E]'
+                    : 'bg-white text-[#667085] border-[#e5e7eb] hover:border-[#1B5E3E]'
+                }`}
+              >
+                As soon as possible
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryTiming('schedule')}
+                className={`min-h-[44px] rounded-xl border text-sm font-bold transition-colors ${
+                  deliveryTiming === 'schedule'
+                    ? 'bg-[#1B5E3E] text-white border-[#1B5E3E]'
+                    : 'bg-white text-[#667085] border-[#e5e7eb] hover:border-[#1B5E3E]'
+                }`}
+              >
+                Schedule for later
+              </button>
+            </div>
+            {deliveryTiming === 'schedule' && (
+              <input
+                type="datetime-local"
+                value={scheduledDateTime}
+                min={minScheduleValue}
+                max={maxScheduleValue}
+                onChange={(e) => setScheduledDateTime(e.target.value)}
+                className={inputClass}
+              />
+            )}
 
             <button
               type="submit"
